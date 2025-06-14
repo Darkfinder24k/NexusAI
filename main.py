@@ -93,15 +93,34 @@ h1, h2, h3, h4, h5, h6 {
     background-color: rgba(10, 10, 26, 0.9) !important;
     border-right: 1px solid var(--primary) !important;
 }
+
+/* Tab styling */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 50px;
+    padding: 0 20px;
+    background-color: rgba(10, 10, 26, 0.5);
+    border-radius: 10px 10px 0 0 !important;
+    border: 1px solid var(--primary) !important;
+    color: var(--light) !important;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: rgba(0, 240, 255, 0.2) !important;
+    color: var(--primary) !important;
+    font-weight: bold;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+}
 </style>
 """, unsafe_allow_html=True)
-
 
 # Initialize Gemini client
 @st.cache_resource
 def init_client():
     return genai.Client(api_key='AIzaSyCZ-1xA0qHy7p3l5VdZYCrvoaQhpMZLjig')
-
 
 client = init_client()
 
@@ -116,14 +135,15 @@ st.markdown("""
 
 # Sidebar for settings
 with st.sidebar:
-
-
+    st.header("⚙️ Control Panel")
+    st.markdown("---")
+    
     image_style = st.selectbox(
         "Image Style",
         ["3D Rendered", "Cyberpunk", "Sci-Fi", "Futuristic", "Neon", "Holographic"],
         index=2
     )
-
+    
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center;">
@@ -132,80 +152,175 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-# Main content area
-with st.form("image_generation_form"):
-    col1, col2 = st.columns([2, 1])
+# Main content area with tabs
+tab1, tab2 = st.tabs(["✨ Generate", "🖌️ Edit"])
 
-    with col1:
-        prompt = st.text_area(
-            "Describe your vision...",
-            height=200,
-            placeholder="A cybernetic owl with neon wings perched on a futuristic skyscraper with holographic advertisements in the background..."
-        )
+with tab1:
+    with st.form("image_generation_form"):
+        col1, col2 = st.columns([2, 1])
 
-        generate_button = st.form_submit_button(
-            "Generate Image",
-            type="primary"
-        )
-
-    with col2:
-        st.markdown("### 💡 Prompt Tips")
-        st.markdown("""
-        - Be descriptive with details
-        - Mention lighting, style, mood
-        - Include futuristic elements
-        - Example: "A floating city at sunset with neon lights reflecting on the water, in cyberpunk style"
-        """)
-
-if generate_button and prompt:
-    with st.spinner("Generating your futuristic vision..."):
-        progress_bar = st.progress(0)
-
-        for percent_complete in range(100):
-            time.sleep(0.02)
-            progress_bar.progress(percent_complete + 1)
-
-        try:
-            # Enhanced prompt with style
-            enhanced_prompt = f"{prompt}, {image_style} style, ultra HD, photorealistic, cinematic lighting"
-
-            response = client.models.generate_content(
-                model='gemini-2.0-flash-preview-image-generation',
-                contents=enhanced_prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=['TEXT', 'IMAGE']
-                )
+        with col1:
+            prompt = st.text_area(
+                "Describe your vision...",
+                height=200,
+                placeholder="A cybernetic owl with neon wings perched on a futuristic skyscraper with holographic advertisements in the background..."
             )
 
-            if response.candidates and response.candidates[0].content.parts:
-                st.success("✨ Generation complete! Behold your creation!")
+            generate_button = st.form_submit_button(
+                "Generate Image",
+                type="primary"
+            )
 
-                cols = st.columns(2)
-                for i, part in enumerate(response.candidates[0].content.parts):
-                    if part.text is not None:
-                        cols[0].markdown(f"### AI Notes")
-                        cols[0].write(part.text)
-                    elif part.inline_data is not None:
-                        image = Image.open(BytesIO((part.inline_data.data)))
-                        cols[1].markdown(f"### Generated Image")
-                        cols[1].image(image, use_container_width=True, caption="Your futuristic creation",
-                                      output_format="PNG")
+        with col2:
+            st.markdown("### 💡 Prompt Tips")
+            st.markdown("""
+            - Be descriptive with details
+            - Mention lighting, style, mood
+            - Include futuristic elements
+            - Example: "A floating city at sunset with neon lights reflecting on the water, in cyberpunk style"
+            """)
 
-                        # Save option
-                        buf = BytesIO()
-                        image.save(buf, format="PNG")
-                        byte_im = buf.getvalue()
-                        cols[1].download_button(
-                            label="Download Image",
-                            data=byte_im,
-                            file_name="nexusai_generation.png",
-                            mime="image/png"
+    if generate_button and prompt:
+        with st.spinner("Generating your futuristic vision..."):
+            progress_bar = st.progress(0)
+
+            for percent_complete in range(100):
+                time.sleep(0.02)
+                progress_bar.progress(percent_complete + 1)
+
+            try:
+                # Enhanced prompt with style
+                enhanced_prompt = f"{prompt}, {image_style} style, ultra HD, photorealistic, cinematic lighting"
+
+                response = client.models.generate_content(
+                    model='gemini-2.0-flash-preview-image-generation',
+                    contents=enhanced_prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=['TEXT', 'IMAGE']
+                    )
+                )
+
+                if response.candidates and response.candidates[0].content.parts:
+                    st.success("✨ Generation complete! Behold your creation!")
+
+                    cols = st.columns(2)
+                    for i, part in enumerate(response.candidates[0].content.parts):
+                        if part.text is not None:
+                            cols[0].markdown(f"### AI Notes")
+                            cols[0].write(part.text)
+                        elif part.inline_data is not None:
+                            image = Image.open(BytesIO((part.inline_data.data)))
+                            cols[1].markdown(f"### Generated Image")
+                            cols[1].image(image, use_container_width=True, caption="Your futuristic creation",
+                                          output_format="PNG")
+
+                            # Save option
+                            buf = BytesIO()
+                            image.save(buf, format="PNG")
+                            byte_im = buf.getvalue()
+                            cols[1].download_button(
+                                label="Download Image",
+                                data=byte_im,
+                                file_name="nexusai_generation.png",
+                                mime="image/png"
+                            )
+                else:
+                    st.error("No image was generated. Please try a different prompt.")
+
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
+
+with tab2:
+    st.markdown("## 🖌️ Image Editing Studio")
+    
+    uploaded_file = st.file_uploader("Upload an image to edit", type=["png", "jpg", "jpeg"])
+    
+    if uploaded_file is not None:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            original_image = Image.open(uploaded_file)
+            st.image(original_image, caption="Original Image", use_column_width=True)
+        
+        with col2:
+            edit_instructions = st.text_area(
+                "Editing instructions",
+                height=150,
+                placeholder="Add cyberpunk neon lights, make the background futuristic, add holographic elements..."
+            )
+            
+            edit_button = st.button(
+                "Apply Edits",
+                use_container_width=True,
+                key="edit_button"
+            )
+            
+            if edit_button and edit_instructions:
+                with st.spinner("Transforming your image..."):
+                    progress_bar = st.progress(0)
+                    
+                    for percent_complete in range(100):
+                        time.sleep(0.02)
+                        progress_bar.progress(percent_complete + 1)
+                    
+                    try:
+                        # Convert image to base64
+                        buffered = BytesIO()
+                        original_image.save(buffered, format="PNG")
+                        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+                        
+                        # Create the prompt with instructions
+                        edit_prompt = f"""
+                        Here is the original image. Please edit it according to these instructions:
+                        {edit_instructions}
+                        Style: {image_style}
+                        Make sure to maintain the original composition while applying these changes.
+                        """
+                        
+                        # Create the content parts
+                        content_parts = [
+                            types.Part(text=edit_prompt),
+                            types.Part(
+                                inline_data=types.Blob(
+                                    mime_type="image/png",
+                                    data=img_str
+                                )
+                            )
+                        ]
+                        
+                        response = client.models.generate_content(
+                            model="gemini-pro-vision",
+                            contents=content_parts
                         )
-            else:
-                st.error("No image was generated. Please try a different prompt.")
-
-        except Exception as e:
-            st.error(f"An error occurred: {str(e)}")
+                        
+                        if response.candidates and response.candidates[0].content.parts:
+                            st.success("🎨 Edit complete!")
+                            
+                            cols = st.columns(2)
+                            for i, part in enumerate(response.candidates[0].content.parts):
+                                if part.text is not None:
+                                    cols[0].markdown(f"### AI Notes")
+                                    cols[0].write(part.text)
+                                elif part.inline_data is not None:
+                                    edited_image = Image.open(BytesIO((part.inline_data.data)))
+                                    cols[1].markdown(f"### Edited Image")
+                                    cols[1].image(edited_image, use_column_width=True, caption="Your enhanced creation", output_format="PNG")
+                                    
+                                    # Save option
+                                    buf = BytesIO()
+                                    edited_image.save(buf, format="PNG")
+                                    byte_im = buf.getvalue()
+                                    cols[1].download_button(
+                                        label="Download Edited Image",
+                                        data=byte_im,
+                                        file_name="nexusai_edited.png",
+                                        mime="image/png"
+                                    )
+                        else:
+                            st.error("The image could not be edited. Please try different instructions.")
+                    
+                    except Exception as e:
+                        st.error(f"An error occurred during editing: {str(e)}")
 
 # Footer
 st.markdown("""
