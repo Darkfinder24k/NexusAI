@@ -240,7 +240,7 @@ with tab2:
         
         with col1:
             original_image = Image.open(uploaded_file)
-            st.image(original_image, caption="Original Image", use_column_width=True)
+            st.image(original_image, caption="Original Image", use_container_width=True)
         
         with col2:
             edit_instructions = st.text_area(
@@ -289,7 +289,7 @@ with tab2:
                         ]
                         
                         response = client.models.generate_content(
-                            model="gemini-pro-vision",
+                            model="gemini-2.0-flash-preview-image-generation",
                             contents=content_parts
                         )
                         
@@ -304,7 +304,7 @@ with tab2:
                                 elif part.inline_data is not None:
                                     edited_image = Image.open(BytesIO((part.inline_data.data)))
                                     cols[1].markdown(f"### Edited Image")
-                                    cols[1].image(edited_image, use_column_width=True, caption="Your enhanced creation", output_format="PNG")
+                                    cols[1].image(edited_image, use_container_width=True, caption="Your enhanced creation", output_format="PNG")
                                     
                                     # Save option
                                     buf = BytesIO()
