@@ -246,7 +246,7 @@ with tab2:
             edit_instructions = st.text_area(
                 "Editing instructions",
                 height=150,
-                placeholder="Add cyberpunk neon lights, make the background futuristic, add holographic elements..."
+                placeholder="Add a llama next to me, make the background futuristic, add holographic elements..."
             )
             
             edit_button = st.button(
@@ -264,33 +264,18 @@ with tab2:
                         progress_bar.progress(percent_complete + 1)
                     
                     try:
-                        # Convert image to base64
-                        buffered = BytesIO()
-                        original_image.save(buffered, format="PNG")
-                        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-                        
-                        # Create the prompt with instructions
-                        edit_prompt = f"""
-                        Here is the original image. Please edit it according to these instructions:
-                        {edit_instructions}
-                        Style: {image_style}
-                        Make sure to maintain the original composition while applying these changes.
-                        """
-                        
                         # Create the content parts
-                        content_parts = [
-                            types.Part(text=edit_prompt),
-                            types.Part(
-                                inline_data=types.Blob(
-                                    mime_type="image/png",
-                                    data=img_str
-                                )
-                            )
+                        contents = [
+                            edit_instructions,
+                            original_image
                         ]
                         
                         response = client.models.generate_content(
                             model="gemini-2.0-flash-preview-image-generation",
-                            contents=content_parts
+                            contents=contents,
+                            config=types.GenerateContentConfig(
+                                response_modalities=['TEXT', 'IMAGE']
+                            )
                         )
                         
                         if response.candidates and response.candidates[0].content.parts:
@@ -302,9 +287,12 @@ with tab2:
                                     cols[0].markdown(f"### AI Notes")
                                     cols[0].write(part.text)
                                 elif part.inline_data is not None:
-                                    edited_image = Image.open(BytesIO((part.inline_data.data)))
+                                    edited_image = Image.open(BytesIO(part.inline_data.data))
                                     cols[1].markdown(f"### Edited Image")
-                                    cols[1].image(edited_image, use_container_width=True, caption="Your enhanced creation", output_format="PNG")
+                                    cols[1].image(edited_image, 
+                                                use_container_width=True, 
+                                                caption="Your enhanced creation", 
+                                                output_format="PNG")
                                     
                                     # Save option
                                     buf = BytesIO()
