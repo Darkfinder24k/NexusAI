@@ -313,7 +313,7 @@ with tab2:
 # Footer
 st.markdown("""
 <div style="text-align: center; margin-top: 50px; padding: 20px; border-top: 1px solid var(--primary);">
-    <p>© 2023 NexusAI Studios | All Rights Reserved</p>
+    <p>© 2025 NexusAI Studios | All Rights Reserved</p>
     <p>Powered by the cutting-edge Quantora AI technology</p>
 </div>
 """, unsafe_allow_html=True)
