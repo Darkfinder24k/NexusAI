@@ -131,7 +131,7 @@ h1, h2, h3, h4, h5, h6 {
 # Kling AI API Configuration
 ACCESS_KEY = "A9GQdrBN9LndCkQy3DHfKtKF88b4QKLF"
 SECRET_KEY = "hhgHaAe3Enek4fFaf8N3HHPmmAmFpJtM"
-KLING_API_URL = "https://api.klingai.com"  # Update if different
+KLING_API_URL = "https://api-singapore.klingai.com"  # Update if different
 
 headers = {
     "AccessKey": ACCESS_KEY,
