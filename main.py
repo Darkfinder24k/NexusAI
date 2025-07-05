@@ -193,7 +193,7 @@ with tab1:
                 enhanced_prompt = f"{prompt}, {image_style} style, ultra HD, photorealistic, cinematic lighting"
 
                 response = client.models.generate_content(
-                    model='imagen-4.0-generate-preview-06-06',
+                    model='models/imagen-4.0-generate-preview-06-06',
                     contents=enhanced_prompt,
                     config=types.GenerateContentConfig(
                         response_modalities=['TEXT', 'IMAGE']
@@ -271,7 +271,7 @@ with tab2:
                         ]
                         
                         response = client.models.generate_content(
-                            model="imagen-4.0-generate-preview-06-06",
+                            model="models/imagen-4.0-generate-preview-06-06",
                             contents=contents,
                             config=types.GenerateContentConfig(
                                 response_modalities=['TEXT', 'IMAGE']
