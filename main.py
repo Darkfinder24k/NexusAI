@@ -129,7 +129,7 @@ h1, h2, h3, h4, h5, h6 {
 
 # A4F API Configuration
 API_KEY = "ddc-a4f-b752e3e2936149f49b1b306953e0eaab"
-API_URL = "https://api.a4f.co/v1/chat/completions"
+API_URL = "https://api.a4f.co/v1"
 
 # Initialize Gemini client
 @st.cache_resource
