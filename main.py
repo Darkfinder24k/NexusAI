@@ -1,3 +1,4 @@
+
 import streamlit as st
 from google import genai
 from google.genai import types
@@ -16,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for futuristic UI
+# Custom CSS for futuristic UI (keep your existing CSS)
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&display=swap');
@@ -127,11 +128,18 @@ h1, h2, h3, h4, h5, h6 {
 </style>
 """, unsafe_allow_html=True)
 
-# A4F API Configuration
-API_KEY = "ddc-a4f-b752e3e2936149f49b1b306953e0eaab"
-API_URL = "https://api.a4f.co/v1/generate/video"
+# Kling AI API Configuration
+ACCESS_KEY = "A9GQdrBN9LndCkQy3DHfKtKF88b4QKLF"
+SECRET_KEY = "hhgHaAe3Enek4fFaf8N3HHPmmAmFpJtM"
+KLING_API_URL = "https://api.kling.ai"  # Update if different
 
-# Initialize Gemini client
+headers = {
+    "AccessKey": ACCESS_KEY,
+    "SecretKey": SECRET_KEY,
+    "Content-Type": "application/json"
+}
+
+# Initialize Gemini client (keep your existing Gemini setup)
 @st.cache_resource
 def init_client():
     return genai.Client(api_key='AIzaSyCZ-1xA0qHy7p3l5VdZYCrvoaQhpMZLjig')
@@ -143,47 +151,38 @@ if "generated_video" not in st.session_state:
     st.session_state.generated_video = None
 if "generation_status" not in st.session_state:
     st.session_state.generation_status = "ready"
-if "job_id" not in st.session_state:
-    st.session_state.job_id = None
+if "task_id" not in st.session_state:
+    st.session_state.task_id = None
 
-# Video generation functions
+# Kling AI Video generation functions
 def generate_video(prompt, duration=5, resolution="1080p", style="cinematic"):
-    """Generate video using A4F's WAN-2.1 model"""
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    data = {
-        "model": "provider-6/wan-2.1",
+    """Generate video using Kling AI API"""
+    endpoint = f"{KLING_API_URL}/api/v1/video/generate"
+    payload = {
         "prompt": prompt,
         "duration": duration,
         "resolution": resolution,
         "style": style,
-        "parameters": {
-            "temperature": 0.7,
-            "seed": int(time.time()),
-            "steps": 30,
-            "cfg_scale": 7.5
-        }
+        "timestamp": int(time.time())
     }
     
     try:
         response = requests.post(
-            API_URL,
+            endpoint,
             headers=headers,
-            json=data,
+            json=payload,
             timeout=60
         )
         response.raise_for_status()
         
-        if response.status_code == 202:
-            return {"status": "processing", "job_id": response.json().get("job_id")}
-        else:
-            return {"status": "completed", "video_url": response.json().get("video_url")}
+        return {
+            "status": "processing" if response.json().get("task_id") else "error",
+            "task_id": response.json().get("task_id"),
+            "message": response.json().get("message", "")
+        }
     
     except requests.exceptions.RequestException as e:
-        error_msg = f"❌ A4F API Error: "
+        error_msg = f"❌ Kling AI API Error: "
         if hasattr(e, 'response') and e.response:
             if e.response.status_code == 429:
                 error_msg += "Rate limit exceeded. Please try again later."
@@ -195,20 +194,14 @@ def generate_video(prompt, duration=5, resolution="1080p", style="cinematic"):
             error_msg += str(e)
         
         return {"status": "error", "message": error_msg}
-    
-    except Exception as e:
-        return {"status": "error", "message": f"❌ Unexpected A4F Error: {str(e)}"}
 
-def check_video_status(job_id):
-    """Check status of a video generation job"""
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
+def check_video_status(task_id):
+    """Check status of a video generation task"""
+    endpoint = f"{KLING_API_URL}/api/v1/video/status/{task_id}"
     
     try:
         response = requests.get(
-            f"{API_URL}/status/{job_id}",
+            endpoint,
             headers=headers,
             timeout=30
         )
@@ -239,7 +232,7 @@ def display_video(video_url):
     except Exception as e:
         st.error(f"Failed to display video: {str(e)}")
 
-# App header
+# App header (keep your existing header)
 st.title("🚀 NexusAI Complete Studio")
 st.markdown("""
 <div style="text-align: center; margin-bottom: 30px;">
@@ -248,7 +241,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Sidebar for settings
+# Sidebar for settings (keep your existing sidebar)
 with st.sidebar:
     st.header("⚙️ Control Panel")
     st.markdown("---")
@@ -305,6 +298,35 @@ if generation_mode == "🎥 Video Generation":
                 placeholder="A futuristic cityscape at night with flying cars and neon lights, cinematic camera movement..."
             )
             
+            # Advanced settings expander
+            with st.expander("⚙️ Advanced Settings"):
+                col_res, col_style = st.columns(2)
+                
+                with col_res:
+                    resolution = st.selectbox(
+                        "Resolution",
+                        ["480p", "720p", "1080p", "2K", "4K", "8K", "12K"],
+                        index=2
+                    )
+                
+                with col_style:
+                    video_style = st.selectbox(
+                        "Video Style",
+                        [
+                            "3D Rendered", "Cyberpunk", "Sci-Fi", 
+                            "Futuristic", "Neon", "Holographic",
+                            "Realistic", "Anime", "Watercolor",
+                            "Cinematic", "Oil Painting", "Steampunk"
+                        ],
+                        index=6  # Default to Realistic
+                    )
+                
+                duration = st.slider(
+                    "Duration (seconds)",
+                    2, 60, 5,
+                    help="Select video length between 2-60 seconds"
+                )
+            
             generate_video_button = st.form_submit_button(
                 "🎥 Generate Video",
                 type="primary"
@@ -317,6 +339,17 @@ if generation_mode == "🎥 Video Generation":
             - Include lighting and atmosphere
             - Mention specific actions or events
             - Add style descriptors
+            - Example: *"A cyberpunk city at night with neon signs reflecting \
+            on wet streets, cinematic wide shot with shallow depth of field"*
+            """)
+            
+            st.markdown("### 🎨 Style Guide")
+            st.markdown("""
+            - **Realistic**: Photorealistic videos
+            - **3D Rendered**: CGI-style animation
+            - **Cyberpunk**: Neon-lit futuristic scenes
+            - **Anime**: Japanese animation style
+            - **Watercolor**: Painterly artistic look
             """)
     
     if generate_video_button and video_prompt:
@@ -324,37 +357,31 @@ if generation_mode == "🎥 Video Generation":
         with st.spinner("🎥 Creating your video masterpiece..."):
             progress_bar = st.progress(0)
             
-            for percent_complete in range(50):
-                time.sleep(0.1)
-                progress_bar.progress(percent_complete + 1)
+            # Simulate progress more smoothly
+            for percent_complete in range(0, 101, 2):
+                time.sleep(0.05)
+                progress_bar.progress(percent_complete)
             
             result = generate_video(
                 prompt=video_prompt,
                 duration=duration,
-                resolution=resolution,
-                style=video_style
+                resolution=resolution.replace("p", "").lower(),  # Format for API
+                style=video_style.lower()
             )
             
-            progress_bar.progress(100)
-            
             if result["status"] == "processing":
-                st.session_state.job_id = result["job_id"]
+                st.session_state.task_id = result["task_id"]
                 st.session_state.generation_status = "processing"
                 st.info("⏳ Video is being generated. Please wait...")
             
-            elif result["status"] == "completed":
-                st.session_state.generation_status = "completed"
-                st.success("✅ Video generated successfully!")
-                display_video(result["video_url"])
-            
-            else:
+            elif result["status"] == "error":
                 st.session_state.generation_status = "error"
                 st.error(result["message"])
     
-    # Handle async video generation
-    if st.session_state.generation_status == "processing" and st.session_state.job_id:
+    # Handle async video generation (keep existing)
+    if st.session_state.generation_status == "processing" and st.session_state.task_id:
         with st.spinner("🔄 Checking video generation status..."):
-            status = check_video_status(st.session_state.job_id)
+            status = check_video_status(st.session_state.task_id)
             
             if status.get("status") == "completed":
                 st.session_state.generation_status = "completed"
@@ -371,18 +398,49 @@ if generation_mode == "🎥 Video Generation":
     # Display previous result if available
     if st.session_state.generated_video and st.session_state.generation_status == "completed":
         st.markdown("### 🎬 Your Generated Video")
-        st.video(st.session_state.generated_video)
+        with st.container():
+            st.video(st.session_state.generated_video)
+            
+            # Enhanced download button
+            try:
+                video_bytes = requests.get(st.session_state.generated_video).content
+                st.download_button(
+                    label="⬇️ Download HD Video",
+                    data=video_bytes,
+                    file_name=f"nexusai_{video_style.lower()}_{resolution}.mp4",
+                    mime="video/mp4",
+                    use_container_width=True
+                )
+            except:
+                st.warning("Video download currently unavailable")
     
-    # Example prompts for video
-    with st.expander("💡 Video Example Prompts"):
-        st.markdown("""
-        Try these prompts for inspiration:
-        - "A futuristic cityscape at night with flying cars and neon lights, cinematic style"
-        - "A serene mountain landscape with a flowing river, drone camera movement"
-        - "An anime-style battle between two warriors in a fantasy setting"
-        - "A cyberpunk street market with holographic signs and diverse aliens"
-        - "A watercolor-style animation of four seasons changing"
-        """)
+    # Enhanced example prompts
+    with st.expander("💡 Video Example Prompts", expanded=False):
+        tab1, tab2, tab3 = st.tabs(["🌆 Scenes", "🎭 Characters", "🎨 Artistic"])
+        
+        with tab1:
+            st.markdown("""
+            **Urban Landscapes:**
+            - "Cyberpunk Tokyo at night with holographic advertisements and flying cars, neon reflections on wet streets"
+            - "Futuristic megacity with towering skyscrapers and aerial highways, golden hour lighting"
+            
+            **Nature:**
+            - "Serene mountain lake at dawn with mist rising, cinematic drone flyover"
+            """)
+        
+        with tab2:
+            st.markdown("""
+            **Character Scenes:**
+            - "Anime-style warrior in glowing armor battling a dragon, dynamic camera angles"
+            - "Robotic bartender in a neon-lit speakeasy, close-up of mixing drinks"
+            """)
+        
+        with tab3:
+            st.markdown("""
+            **Artistic Styles:**
+            - "Watercolor animation of Paris changing through four seasons"
+            - "Oil painting style portrait of a steampunk inventor in workshop"
+            """)
 
 elif generation_mode == "✨ Image Generation":
     st.header("🖼️ Image Generation Studio")
@@ -397,6 +455,29 @@ elif generation_mode == "✨ Image Generation":
                 placeholder="A cybernetic owl with neon wings perched on a futuristic skyscraper with holographic advertisements..."
             )
 
+            # Advanced image settings
+            with st.expander("⚙️ Advanced Settings"):
+                col_style, col_aspect = st.columns(2)
+                
+                with col_style:
+                    image_style = st.selectbox(
+                        "Image Style",
+                        [
+                            "3D Rendered", "Cyberpunk", "Sci-Fi", 
+                            "Futuristic", "Neon", "Holographic",
+                            "Photorealistic", "Anime", "Watercolor",
+                            "Oil Painting", "Steampunk", "Low Poly"
+                        ],
+                        index=2
+                    )
+                
+                with col_aspect:
+                    aspect_ratio = st.selectbox(
+                        "Aspect Ratio",
+                        ["1:1 (Square)", "4:3 (Standard)", "16:9 (Widescreen)", "9:16 (Portrait)", "2:3 (Vertical)"],
+                        index=0
+                    )
+
             generate_image_button = st.form_submit_button(
                 "✨ Generate Image",
                 type="primary"
@@ -409,18 +490,28 @@ elif generation_mode == "✨ Image Generation":
             - Mention lighting, style, mood
             - Include futuristic elements
             - Specify composition and perspective
+            - Example: *"A cybernetic samurai standing on a neon-lit rooftop at dusk, intricate armor glowing with circuit patterns"*
+            """)
+            
+            st.markdown("### 🎨 Style Guide")
+            st.markdown("""
+            - **Photorealistic**: Camera-like quality
+            - **3D Rendered**: CGI game asset style
+            - **Cyberpunk**: Neon-noir aesthetic
+            - **Watercolor**: Painterly artistic look
             """)
 
     if generate_image_button and image_prompt:
         with st.spinner("✨ Generating your futuristic vision..."):
             progress_bar = st.progress(0)
 
-            for percent_complete in range(100):
+            # Smooth progress animation
+            for percent_complete in range(0, 101, 2):
                 time.sleep(0.02)
-                progress_bar.progress(percent_complete + 1)
+                progress_bar.progress(percent_complete)
 
             try:
-                enhanced_prompt = f"{image_prompt}, {image_style} style, ultra HD, photorealistic, cinematic lighting"
+                enhanced_prompt = f"{image_prompt}, {image_style} style, ultra HD, {aspect_ratio.split(' ')[0]} aspect ratio"
 
                 response = client.models.generate_content(
                     model='gemini-2.0-flash-preview-image-generation',
@@ -441,17 +532,18 @@ elif generation_mode == "✨ Image Generation":
                         elif part.inline_data is not None:
                             image = Image.open(BytesIO((part.inline_data.data)))
                             cols[1].markdown(f"### 🖼️ Generated Image")
-                            cols[1].image(image, use_container_width=True, caption="Your futuristic creation")
+                            cols[1].image(image, use_container_width=True, caption=f"{image_style} style image")
 
-                            # Save option
+                            # Enhanced download options
                             buf = BytesIO()
                             image.save(buf, format="PNG")
                             byte_im = buf.getvalue()
                             cols[1].download_button(
-                                label="📥 Download Image",
+                                label="📥 Download HD Image",
                                 data=byte_im,
-                                file_name="nexusai_generation.png",
-                                mime="image/png"
+                                file_name=f"nexusai_{image_style.lower().replace(' ', '_')}.png",
+                                mime="image/png",
+                                use_container_width=True
                             )
                 else:
                     st.error("No image was generated. Please try a different prompt.")
@@ -462,7 +554,7 @@ elif generation_mode == "✨ Image Generation":
 elif generation_mode == "🖌️ Image Editing":
     st.header("🖌️ Image Editing Studio")
     
-    uploaded_file = st.file_uploader("Upload an image to edit", type=["png", "jpg", "jpeg"])
+    uploaded_file = st.file_uploader("Upload an image to edit", type=["png", "jpg", "jpeg"], accept_multiple_files=False)
     
     if uploaded_file is not None:
         col1, col2 = st.columns(2)
@@ -478,6 +570,17 @@ elif generation_mode == "🖌️ Image Editing":
                 placeholder="Add holographic elements, make the background futuristic, enhance with neon lighting..."
             )
             
+            # Editing style options
+            edit_style = st.selectbox(
+                "Editing Style",
+                [
+                    "Match Original", "Cyberpunk", "Sci-Fi", 
+                    "Futuristic", "Neon", "Holographic",
+                    "Realistic", "Anime", "Watercolor"
+                ],
+                index=0
+            )
+            
             edit_button = st.button(
                 "🖌️ Apply Edits",
                 use_container_width=True,
@@ -488,13 +591,13 @@ elif generation_mode == "🖌️ Image Editing":
                 with st.spinner("🖌️ Transforming your image..."):
                     progress_bar = st.progress(0)
                     
-                    for percent_complete in range(100):
-                        time.sleep(0.02)
-                        progress_bar.progress(percent_complete + 1)
+                    for percent_complete in range(0, 101, 5):
+                        time.sleep(0.05)
+                        progress_bar.progress(percent_complete)
                     
                     try:
                         contents = [
-                            edit_instructions,
+                            f"{edit_instructions} ({edit_style} style)",
                             original_image
                         ]
                         
@@ -519,17 +622,18 @@ elif generation_mode == "🖌️ Image Editing":
                                     cols[1].markdown(f"### 🖼️ Edited Image")
                                     cols[1].image(edited_image, 
                                                 use_container_width=True, 
-                                                caption="Your enhanced creation")
+                                                caption=f"Your enhanced creation ({edit_style} style)")
                                     
-                                    # Save option
+                                    # Enhanced download options
                                     buf = BytesIO()
                                     edited_image.save(buf, format="PNG")
                                     byte_im = buf.getvalue()
                                     cols[1].download_button(
                                         label="📥 Download Edited Image",
                                         data=byte_im,
-                                        file_name="nexusai_edited.png",
-                                        mime="image/png"
+                                        file_name=f"nexusai_edited_{edit_style.lower().replace(' ', '_')}.png",
+                                        mime="image/png",
+                                        use_container_width=True
                                     )
                         else:
                             st.error("The image could not be edited. Please try different instructions.")
@@ -542,6 +646,6 @@ st.markdown("---")
 st.markdown("""
 <div style="text-align: center; margin-top: 50px; padding: 20px; border-top: 1px solid var(--primary);">
     <p>© 2025 NexusAI Complete Studio | All Rights Reserved</p>
-    <p>Powered by cutting-edge AI technology - Video Generation via A4F API & Image Generation via Gemini AI</p>
+    <p>Powered by cutting-edge AI technology - Video Generation via Kling AI & Image Generation via Gemini AI</p>
 </div>
 """, unsafe_allow_html=True)
