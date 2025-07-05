@@ -1,14 +1,16 @@
+import requests
+import json
 import streamlit as st
+from PIL import Image
+import io
+import time
 from google import genai
 from google.genai import types
-from PIL import Image
 from io import BytesIO
-import base64
-import time
 
-# Configure page
+# Configure page with futuristic UI
 st.set_page_config(
-    page_title="NexusAI Image Studio",
+    page_title="NexusAI Media Studio",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -63,14 +65,14 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 0 20px rgba(0, 240, 255, 0.9);
 }
 
-/* Animation for generated images */
+/* Animation for generated content */
 @keyframes float {
     0% { transform: translateY(0px); }
     50% { transform: translateY(-10px); }
     100% { transform: translateY(0px); }
 }
 
-.generated-image {
+.generated-content {
     animation: float 4s ease-in-out infinite;
     border: 2px solid var(--primary);
     border-radius: 10px;
@@ -78,7 +80,7 @@ h1, h2, h3, h4, h5, h6 {
     transition: all 0.3s ease;
 }
 
-.generated-image:hover {
+.generated-content:hover {
     transform: scale(1.02);
     box-shadow: 0 0 30px rgba(0, 240, 255, 0.8);
 }
@@ -117,6 +119,10 @@ h1, h2, h3, h4, h5, h6 {
 </style>
 """, unsafe_allow_html=True)
 
+# A4F API Configuration
+A4F_API_KEY = "ddc-a4f-b752e3e2936149f49b1b306953e0eaab"  # Replace with your actual API key
+A4F_API_URL = "https://api.a4f.co/v1/video/generations"
+
 # Initialize Gemini client
 @st.cache_resource
 def init_client():
@@ -125,11 +131,11 @@ def init_client():
 client = init_client()
 
 # App header
-st.title("🚀 NexusAI Image Studio")
+st.title("🚀 NexusAI Media Studio")
 st.markdown("""
 <div style="text-align: center; margin-bottom: 30px;">
-    <h3>The most advanced AI image generation platform in the universe</h3>
-    <p>Create stunning futuristic visuals with the power of Nexus AI</p>
+    <h3>The most advanced AI media generation platform in the universe</h3>
+    <p>Create stunning futuristic visuals and videos with the power of Nexus AI</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -138,17 +144,32 @@ with st.sidebar:
     st.header("⚙️ Control Panel")
     st.markdown("---")
     
-    image_style = st.selectbox(
-        "Image Style",
-        ["3D Rendered", "Cyberpunk", "Sci-Fi", "Futuristic", "Neon", "Holographic"],
-        index=2
+    content_type = st.radio(
+        "Content Type",
+        ["Image", "Video"],
+        index=0
     )
+    
+    if content_type == "Image":
+        image_style = st.selectbox(
+            "Image Style",
+            ["3D Rendered", "Cyberpunk", "Sci-Fi", "Futuristic", "Neon", "Holographic"],
+            index=2
+        )
+    else:
+        video_duration = st.slider("Video Duration (seconds)", 2, 60, 5)
+        video_resolution = st.selectbox("Resolution", ["720p", "1080p", "4K", "8K", "10K", "12K", "14K"], index=1)
+        video_style = st.selectbox(
+            "Video Style", 
+            ["Cinematic", "Cyberpunk", "Sci-Fi", "Anime", "3D Animation", "Holographic"],
+            index=0
+        )
     
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center;">
         <p>Powered by Quantora AI</p>
-        <p>v2.3.7 | Nexus Core</p>
+        <p>v3.0.1 | Nexus Core</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -156,32 +177,41 @@ with st.sidebar:
 tab1, tab2 = st.tabs(["✨ Generate", "🖌️ Edit"])
 
 with tab1:
-    with st.form("image_generation_form"):
+    with st.form("generation_form"):
         col1, col2 = st.columns([2, 1])
 
         with col1:
             prompt = st.text_area(
                 "Describe your vision...",
                 height=200,
-                placeholder="A cybernetic owl with neon wings perched on a futuristic skyscraper with holographic advertisements in the background..."
+                placeholder="A cybernetic owl with neon wings soaring through a futuristic cityscape with holographic advertisements..." 
+                if content_type == "Image" else 
+                "A futuristic cityscape at night with flying cars and neon lights, cinematic style"
             )
 
             generate_button = st.form_submit_button(
-                "Generate Image",
+                f"Generate {content_type}",
                 type="primary"
             )
 
         with col2:
             st.markdown("### 💡 Prompt Tips")
-            st.markdown("""
-            - Be descriptive with details
-            - Mention lighting, style, mood
-            - Include futuristic elements
-            - Example: "A floating city at sunset with neon lights reflecting on the water, in cyberpunk style"
-            """)
+            if content_type == "Image":
+                st.markdown("""
+                - Be descriptive with details
+                - Mention lighting, style, mood
+                - Include futuristic elements
+                - Example: "A floating city at sunset with neon lights reflecting on the water, in cyberpunk style"
+                """)
+            else:
+                st.markdown("""
+                - Describe the scene, action, and style
+                - Include camera movements if desired
+                - Example: "A drone shot flying through a neon-lit cyberpunk city at night, cinematic style"
+                """)
 
     if generate_button and prompt:
-        with st.spinner("Generating your futuristic vision..."):
+        with st.spinner(f"Generating your futuristic {content_type.lower()}..."):
             progress_bar = st.progress(0)
 
             for percent_complete in range(100):
@@ -189,64 +219,171 @@ with tab1:
                 progress_bar.progress(percent_complete + 1)
 
             try:
-                # Enhanced prompt with style
-                enhanced_prompt = f"{prompt}, {image_style} style, ultra HD, photorealistic, cinematic lighting"
+                if content_type == "Image":
+                    # Enhanced prompt with style
+                    enhanced_prompt = f"{prompt}, {image_style} style, ultra HD, photorealistic, cinematic lighting"
 
-                response = client.models.generate_content(
-                    model='gemini-2.0-flash-preview-image-generation',
-                    contents=enhanced_prompt,
-                    config=types.GenerateContentConfig(
-                        response_modalities=['TEXT', 'IMAGE']
+                    response = client.models.generate_content(
+                        model='gemini-2.0-flash-preview-image-generation',
+                        contents=enhanced_prompt,
+                        config=types.GenerateContentConfig(
+                            response_modalities=['TEXT', 'IMAGE']
+                        )
                     )
-                )
 
-                if response.candidates and response.candidates[0].content.parts:
-                    st.success("✨ Generation complete! Behold your creation!")
+                    if response.candidates and response.candidates[0].content.parts:
+                        st.success("✨ Generation complete! Behold your creation!")
 
-                    cols = st.columns(2)
-                    for i, part in enumerate(response.candidates[0].content.parts):
-                        if part.text is not None:
-                            cols[0].markdown(f"### AI Notes")
-                            cols[0].write(part.text)
-                        elif part.inline_data is not None:
-                            image = Image.open(BytesIO((part.inline_data.data)))
-                            cols[1].markdown(f"### Generated Image")
-                            cols[1].image(image, use_container_width=True, caption="Your futuristic creation",
-                                          output_format="PNG")
+                        cols = st.columns(2)
+                        for i, part in enumerate(response.candidates[0].content.parts):
+                            if part.text is not None:
+                                cols[0].markdown(f"### AI Notes")
+                                cols[0].write(part.text)
+                            elif part.inline_data is not None:
+                                image = Image.open(BytesIO((part.inline_data.data)))
+                                cols[1].markdown(f"### Generated Image")
+                                cols[1].image(image, use_container_width=True, 
+                                            caption="Your futuristic creation",
+                                            output_format="PNG")
 
-                            # Save option
-                            buf = BytesIO()
-                            image.save(buf, format="PNG")
-                            byte_im = buf.getvalue()
-                            cols[1].download_button(
-                                label="Download Image",
-                                data=byte_im,
-                                file_name="nexusai_generation.png",
-                                mime="image/png"
+                                # Save option
+                                buf = BytesIO()
+                                image.save(buf, format="PNG")
+                                byte_im = buf.getvalue()
+                                cols[1].download_button(
+                                    label="Download Image",
+                                    data=byte_im,
+                                    file_name="nexusai_generation.png",
+                                    mime="image/png"
+                                )
+                    else:
+                        st.error("No image was generated. Please try a different prompt.")
+
+                else:  # Video generation
+                    headers = {
+                        "Authorization": f"Bearer {A4F_API_KEY}",
+                        "Content-Type": "application/json"
+                    }
+                    
+                    data = {
+                        "model": "provider-6/wan-2.1",
+                        "prompt": f"{prompt}, {video_style} style",
+                        "duration": video_duration,
+                        "resolution": video_resolution,
+                        "style": video_style.lower().replace(" ", "-"),
+                        "parameters": {
+                            "temperature": 0.7,
+                            "seed": int(time.time()),
+                            "steps": 30,
+                            "cfg_scale": 7.5
+                        }
+                    }
+                    
+                    response = requests.post(
+                        A4F_API_URL,
+                        headers=headers,
+                        json=data,
+                        timeout=60
+                    )
+                    response.raise_for_status()
+                    
+                    if response.status_code == 202:
+                        job_id = response.json().get("job_id")
+                        st.session_state.video_job_id = job_id
+                        st.session_state.generation_status = "processing"
+                        st.info("⏳ Video is being generated. Please wait...")
+                    else:
+                        video_url = response.json().get("video_url")
+                        if video_url:
+                            st.success("🎥 Video generation complete!")
+                            st.video(video_url)
+                            
+                            # Download button
+                            video_bytes = requests.get(video_url).content
+                            st.download_button(
+                                label="📥 Download Video",
+                                data=video_bytes,
+                                file_name="generated_video.mp4",
+                                mime="video/mp4"
                             )
-                else:
-                    st.error("No image was generated. Please try a different prompt.")
+                        else:
+                            st.error("Video generation failed. Please try again.")
 
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
 
+# Polling for async video jobs
+if hasattr(st.session_state, 'generation_status') and st.session_state.generation_status == "processing":
+    with st.spinner("🔄 Checking video generation status..."):
+        try:
+            headers = {
+                "Authorization": f"Bearer {A4F_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            
+            response = requests.get(
+                f"{A4F_API_URL}/status/{st.session_state.video_job_id}",
+                headers=headers,
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            status = response.json()
+            
+            if status.get("status") == "completed":
+                st.session_state.generation_status = "completed"
+                video_url = status.get("video_url")
+                
+                st.success("🎥 Video generation complete!")
+                st.video(video_url)
+                
+                # Download button
+                video_bytes = requests.get(video_url).content
+                st.download_button(
+                    label="📥 Download Video",
+                    data=video_bytes,
+                    file_name="generated_video.mp4",
+                    mime="video/mp4"
+                )
+                
+                st.rerun()
+            elif status.get("status") == "error":
+                st.session_state.generation_status = "error"
+                st.error(status.get("message", "Video generation failed"))
+            else:
+                time.sleep(5)
+                st.rerun()
+                
+        except Exception as e:
+            st.error(f"Error checking video status: {str(e)}")
+
 with tab2:
-    st.markdown("## 🖌️ Image Editing Studio")
+    st.markdown(f"## 🖌️ {content_type} Editing Studio")
     
-    uploaded_file = st.file_uploader("Upload an image to edit", type=["png", "jpg", "jpeg"])
+    uploaded_file = st.file_uploader(
+        f"Upload a {content_type.lower()} to edit", 
+        type=["png", "jpg", "jpeg"] if content_type == "Image" else ["mp4", "mov"]
+    )
     
     if uploaded_file is not None:
         col1, col2 = st.columns(2)
         
         with col1:
-            original_image = Image.open(uploaded_file)
-            st.image(original_image, caption="Original Image", use_container_width=True)
+            if content_type == "Image":
+                original_content = Image.open(uploaded_file)
+                st.image(original_content, caption="Original Image", use_container_width=True)
+            else:
+                st.video(uploaded_file)
+                original_content = uploaded_file.read()
+                st.caption("Original Video")
         
         with col2:
             edit_instructions = st.text_area(
                 "Editing instructions",
                 height=150,
-                placeholder="Add a llama next to me, make the background futuristic, add holographic elements..."
+                placeholder="Add a futuristic cityscape in the background, make it cyberpunk style..." 
+                if content_type == "Image" else
+                "Add flying cars, make the scene at night with neon lights, cyberpunk style..."
             )
             
             edit_button = st.button(
@@ -256,7 +393,7 @@ with tab2:
             )
             
             if edit_button and edit_instructions:
-                with st.spinner("Transforming your image..."):
+                with st.spinner("Transforming your content..."):
                     progress_bar = st.progress(0)
                     
                     for percent_complete in range(100):
@@ -264,48 +401,54 @@ with tab2:
                         progress_bar.progress(percent_complete + 1)
                     
                     try:
-                        # Create the content parts
-                        contents = [
-                            edit_instructions,
-                            original_image
-                        ]
-                        
-                        response = client.models.generate_content(
-                            model="gemini-2.0-flash-preview-image-generation",
-                            contents=contents,
-                            config=types.GenerateContentConfig(
-                                response_modalities=['TEXT', 'IMAGE']
-                            )
-                        )
-                        
-                        if response.candidates and response.candidates[0].content.parts:
-                            st.success("🎨 Edit complete!")
+                        if content_type == "Image":
+                            # Create the content parts
+                            contents = [
+                                edit_instructions,
+                                original_content
+                            ]
                             
-                            cols = st.columns(2)
-                            for i, part in enumerate(response.candidates[0].content.parts):
-                                if part.text is not None:
-                                    cols[0].markdown(f"### AI Notes")
-                                    cols[0].write(part.text)
-                                elif part.inline_data is not None:
-                                    edited_image = Image.open(BytesIO(part.inline_data.data))
-                                    cols[1].markdown(f"### Edited Image")
-                                    cols[1].image(edited_image, 
-                                                use_container_width=True, 
-                                                caption="Your enhanced creation", 
-                                                output_format="PNG")
-                                    
-                                    # Save option
-                                    buf = BytesIO()
-                                    edited_image.save(buf, format="PNG")
-                                    byte_im = buf.getvalue()
-                                    cols[1].download_button(
-                                        label="Download Edited Image",
-                                        data=byte_im,
-                                        file_name="nexusai_edited.png",
-                                        mime="image/png"
-                                    )
-                        else:
-                            st.error("The image could not be edited. Please try different instructions.")
+                            response = client.models.generate_content(
+                                model="gemini-2.0-flash-preview-image-generation",
+                                contents=contents,
+                                config=types.GenerateContentConfig(
+                                    response_modalities=['TEXT', 'IMAGE']
+                                )
+                            )
+                            
+                            if response.candidates and response.candidates[0].content.parts:
+                                st.success("🎨 Edit complete!")
+                                
+                                cols = st.columns(2)
+                                for i, part in enumerate(response.candidates[0].content.parts):
+                                    if part.text is not None:
+                                        cols[0].markdown(f"### AI Notes")
+                                        cols[0].write(part.text)
+                                    elif part.inline_data is not None:
+                                        edited_content = Image.open(BytesIO(part.inline_data.data))
+                                        cols[1].markdown(f"### Edited Image")
+                                        cols[1].image(edited_content, 
+                                                    use_container_width=True, 
+                                                    caption="Your enhanced creation", 
+                                                    output_format="PNG")
+                                        
+                                        # Save option
+                                        buf = BytesIO()
+                                        edited_content.save(buf, format="PNG")
+                                        byte_im = buf.getvalue()
+                                        cols[1].download_button(
+                                            label="Download Edited Image",
+                                            data=byte_im,
+                                            file_name="nexusai_edited.png",
+                                            mime="image/png"
+                                        )
+                            else:
+                                st.error("The image could not be edited. Please try different instructions.")
+                        
+                        else:  # Video editing
+                            st.warning("Video editing is currently in beta. Please check back soon!")
+                            # Placeholder for future video editing implementation
+                            # Would use similar A4F API call with the original video and edit instructions
                     
                     except Exception as e:
                         st.error(f"An error occurred during editing: {str(e)}")
