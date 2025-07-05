@@ -38,59 +38,129 @@ st.markdown("""
     color: var(--light);
 }
 
-/* [Keep all your existing CSS styles here] */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--primary) !important;
+    text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+}
+
+.stTextInput>div>div>input, .stTextArea>div>div>textarea {
+    background-color: rgba(10, 10, 26, 0.8) !important;
+    color: var(--light) !important;
+    border: 1px solid var(--primary) !important;
+    border-radius: 5px !important;
+}
+
+.stButton>button {
+    background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%) !important;
+    color: var(--dark) !important;
+    border: none !important;
+    border-radius: 25px !important;
+    padding: 10px 25px !important;
+    font-weight: bold !important;
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.7);
+    transition: all 0.3s ease !important;
+}
+
+.stButton>button:hover {
+    transform: scale(1.05) !important;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.9);
+}
+
+/* Animation for generated content */
+@keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+}
+
+.generated-content {
+    animation: float 4s ease-in-out infinite;
+    border: 2px solid var(--primary);
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+    transition: all 0.3s ease;
+}
+
+.generated-content:hover {
+    transform: scale(1.02);
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.8);
+}
+
+/* Progress bar styling */
+.stProgress>div>div>div {
+    background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%) !important;
+}
+
+/* Sidebar styling */
+.css-1d391kg {
+    background-color: rgba(10, 10, 26, 0.9) !important;
+    border-right: 1px solid var(--primary) !important;
+}
+
+/* Tab styling */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 50px;
+    padding: 0 20px;
+    background-color: rgba(10, 10, 26, 0.5);
+    border-radius: 10px 10px 0 0 !important;
+    border: 1px solid var(--primary) !important;
+    color: var(--light) !important;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: rgba(0, 240, 255, 0.2) !important;
+    color: var(--primary) !important;
+    font-weight: bold;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+}
+
+/* Video container styling */
+.video-container {
+    border: 2px solid var(--primary);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+}
 </style>
 """, unsafe_allow_html=True)
 
-# =============================================
 # Kling AI API Configuration
-# =============================================
-KLING_API_URL = "https://api-singapore.klingai.com"  # Base endpoint only
+KLING_API_URL = "https://api-singapore.klingai.com"
 ACCESS_KEY = "A9GQdrBN9LndCkQy3DHfKtKF88b4QKLF"
 SECRET_KEY = "hhgHaAe3Enek4fFaf8N3HHPmmAmFpJtM"
 
 headers = {
     "AccessKey": ACCESS_KEY,
     "SecretKey": SECRET_KEY,
-    "Content-Type": "application/json",
-    "Accept": "application/json"
+    "Content-Type": "application/json"
 }
 
-# =============================================
-# API Verification & Helper Functions
-# =============================================
-def verify_dns_resolution():
-    """Verify the API domain resolves"""
-    try:
-        domain = KLING_API_URL.split('//')[1].split('/')[0]
-        socket.gethostbyname(domain)
-        return True
-    except socket.gaierror:
-        return False
+# Initialize Gemini client
+@st.cache_resource
+def init_client():
+    return genai.Client(api_key='AIzaSyCZ-1xA0qHy7p3l5VdZYCrvoaQhpMZLjig')
 
-def verify_api_connection():
-    """Check if API is reachable"""
-    try:
-        # First verify DNS
-        if not verify_dns_resolution():
-            return False, "DNS resolution failed"
-            
-        # Try a HEAD request to avoid potential large responses
-        response = requests.head(
-            KLING_API_URL,
-            headers=headers,
-            timeout=10,
-            allow_redirects=True
-        )
-        return response.status_code < 500, f"HTTP {response.status_code}"
-    except Exception as e:
-        return False, str(e)
+client = init_client()
 
-# =============================================
-# Kling AI API Functions (Fixed)
-# =============================================
+# Session state initialization
+if "generated_video" not in st.session_state:
+    st.session_state.generated_video = None
+if "generation_status" not in st.session_state:
+    st.session_state.generation_status = "ready"
+if "task_id" not in st.session_state:
+    st.session_state.task_id = None
+if "last_error" not in st.session_state:
+    st.session_state.last_error = None
+
+# Kling AI Video generation functions
 def generate_video(prompt, duration=5, resolution="1080p", style="cinematic"):
-    """Generate video with robust error handling"""
+    """Generate video using Kling AI API"""
+    endpoint = KLING_API_URL  # Using base URL directly
+    
     payload = {
         "prompt": prompt,
         "duration": duration,
@@ -101,52 +171,48 @@ def generate_video(prompt, duration=5, resolution="1080p", style="cinematic"):
     
     try:
         response = requests.post(
-            KLING_API_URL,
+            endpoint,
             headers=headers,
             json=payload,
             timeout=60
         )
         
         # Debug raw response
-        debug_msg = f"Status: {response.status_code}, Response: {response.text[:200]}"
-        print(debug_msg)  # For debugging
+        print("Raw API Response:", response.text)
         
-        # Handle empty response
         if not response.content:
             return {
                 "status": "error",
-                "message": "Empty response from server",
-                "debug": debug_msg
+                "message": "Empty response from API server",
+                "debug": response.text
             }
             
-        # Try parsing JSON
         try:
-            data = response.json()
-        except ValueError:
+            response_json = response.json()
+        except json.JSONDecodeError:
             return {
                 "status": "error",
                 "message": "Invalid JSON response",
-                "debug": debug_msg
+                "debug": response.text
             }
-            
-        # Check for success
+        
         if response.status_code == 200:
-            if "task_id" in data:
+            if "task_id" in response_json:
                 return {
                     "status": "processing",
-                    "task_id": data["task_id"],
-                    "message": data.get("message", "")
+                    "task_id": response_json["task_id"],
+                    "message": response_json.get("message", "")
                 }
             return {
                 "status": "error",
-                "message": data.get("error", "Missing task_id in response"),
-                "debug": debug_msg
+                "message": response_json.get("error", "Missing task_id in response"),
+                "debug": response.text
             }
             
         return {
             "status": "error",
-            "message": f"API Error {response.status_code}: {data.get('message', 'Unknown error')}",
-            "debug": debug_msg
+            "message": f"API Error {response.status_code}",
+            "debug": response.text
         }
         
     except requests.exceptions.RequestException as e:
@@ -157,9 +223,8 @@ def generate_video(prompt, duration=5, resolution="1080p", style="cinematic"):
         }
 
 def check_video_status(task_id):
-    """Check video generation status"""
+    """Check status of a video generation task"""
     try:
-        # Kling AI typically uses POST for status checks too
         response = requests.post(
             KLING_API_URL,
             headers=headers,
@@ -178,7 +243,7 @@ def check_video_status(task_id):
                 "status": "error",
                 "message": data.get("error", "Invalid response format")
             }
-        except ValueError:
+        except json.JSONDecodeError:
             return {
                 "status": "error",
                 "message": f"Invalid JSON: {response.text[:200]}"
@@ -190,30 +255,40 @@ def check_video_status(task_id):
             "message": f"Status check failed: {str(e)}"
         }
 
-# =============================================
-# Gemini AI Configuration (Keep Existing)
-# =============================================
-@st.cache_resource
-def init_client():
-    return genai.Client(api_key='AIzaSyCZ-1xA0qHy7p3l5VdZYCrvoaQhpMZLjig')
+def display_video(video_url):
+    """Display generated video in Streamlit"""
+    try:
+        st.video(video_url)
+        st.session_state.generated_video = video_url
+        
+        try:
+            video_bytes = requests.get(video_url, stream=True, timeout=30).content
+            st.download_button(
+                label="📥 Download Video",
+                data=video_bytes,
+                file_name="nexusai_video.mp4",
+                mime="video/mp4"
+            )
+        except Exception as e:
+            st.warning(f"Video download unavailable: {str(e)}")
+    
+    except Exception as e:
+        st.error(f"Failed to display video: {str(e)}")
 
-client = init_client()
+def display_error_details(error_data):
+    """Show detailed error information"""
+    with st.expander("🚨 Error Details", expanded=False):
+        st.error(error_data.get("message", "Unknown error"))
+        st.code(f"Debug Info:\n{error_data.get('debug', 'No debug info available')}")
+        st.markdown("**Troubleshooting Tips:**")
+        st.markdown("""
+        - Check your internet connection
+        - Verify your API keys are correct
+        - Try a simpler prompt
+        - Wait a few minutes and try again
+        """)
 
-# =============================================
-# Session State Initialization
-# =============================================
-if "generated_video" not in st.session_state:
-    st.session_state.generated_video = None
-if "generation_status" not in st.session_state:
-    st.session_state.generation_status = "ready"
-if "task_id" not in st.session_state:
-    st.session_state.task_id = None
-if "last_error" not in st.session_state:
-    st.session_state.last_error = None
-
-# =============================================
-# Main Application UI
-# =============================================
+# App header
 st.title("🚀 NexusAI Complete Studio")
 st.markdown("""
 <div style="text-align: center; margin-bottom: 30px;">
@@ -222,58 +297,122 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Verify API connection at startup
-if 'api_verified' not in st.session_state:
-    st.session_state.api_verified, st.session_state.api_error = verify_api_connection()
-    if not st.session_state.api_verified:
-        st.error(f"""
-        ⚠️ Kling AI API Connection Failed:
-        {st.session_state.api_error}
+# Sidebar for settings
+with st.sidebar:
+    st.header("⚙️ Control Panel")
+    st.markdown("---")
+    
+    # Initialize generation_mode in session state
+    if "generation_mode" not in st.session_state:
+        st.session_state.generation_mode = "🎥 Video Generation"
+    
+    # Mode selection
+    st.session_state.generation_mode = st.selectbox(
+        "Generation Mode",
+        ["🎥 Video Generation", "✨ Image Generation", "🖌️ Image Editing"],
+        index=0
+    )
+    
+    st.markdown("---")
+    
+    if st.session_state.generation_mode == "🎥 Video Generation":
+        st.subheader("Video Settings")
+        duration = st.slider("Duration (seconds)", 2, 60, 5)
+        resolution = st.selectbox("Resolution", ["720p", "1080p", "4K"], index=1)
+        video_style = st.selectbox("Video Style", [
+            "cinematic", 
+            "realistic", 
+            "anime", 
+            "3d-animation", 
+            "watercolor", 
+            "cyberpunk"
+        ], index=0)
+    
+    elif st.session_state.generation_mode in ["✨ Image Generation", "🖌️ Image Editing"]:
+        st.subheader("Image Settings")
+        image_style = st.selectbox(
+            "Image Style",
+            ["3D Rendered", "Cyberpunk", "Sci-Fi", "Futuristic", "Neon", "Holographic"],
+            index=2
+        )
+    
+    st.markdown("---")
+    st.markdown("""
+    <div style="text-align: center;">
+        <p>Powered by NexusAI</p>
+        <p>v3.0.0 | Complete Studio</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Main content area
+if st.session_state.generation_mode == "🎥 Video Generation":
+    st.header("🎬 Video Generation Studio")
+    
+    with st.form("video_generation_form"):
+        col1, col2 = st.columns([2, 1])
         
-        Please check:
-        1. Your internet connection
-        2. API keys are correct
-        3. The service is available
-        """)
-        st.stop()
-
-# [Rest of your existing UI code for sidebar, video generation, etc.]
-# Keep all your existing Streamlit UI components exactly as they were
-# Only the API interaction functions above have been modified
-
-# =============================================
-# Enhanced Error Display
-# =============================================
-def display_error_details(error_data):
-    """Show detailed error information"""
-    with st.expander("🚨 Error Details (Click to View)"):
-        st.code(f"""
-        Error Message: {error_data.get("message", "Unknown error")}
-        Status Code: {error_data.get("status_code", "N/A")}
-        Debug Info: {error_data.get("debug", "No debug info")}
-        """)
+        with col1:
+            video_prompt = st.text_area(
+                "Describe your video...",
+                height=200,
+                placeholder="A futuristic cityscape at night with flying cars and neon lights, cinematic camera movement..."
+            )
+            
+            with st.expander("⚙️ Advanced Settings"):
+                col_res, col_style = st.columns(2)
+                
+                with col_res:
+                    resolution = st.selectbox(
+                        "Resolution",
+                        ["480p", "720p", "1080p", "2K", "4K", "8K", "12K"],
+                        index=2
+                    )
+                
+                with col_style:
+                    video_style = st.selectbox(
+                        "Video Style",
+                        [
+                            "3D Rendered", "Cyberpunk", "Sci-Fi", 
+                            "Futuristic", "Neon", "Holographic",
+                            "Realistic", "Anime", "Watercolor",
+                            "Cinematic", "Oil Painting", "Steampunk"
+                        ],
+                        index=6
+                    )
+                
+                duration = st.slider(
+                    "Duration (seconds)",
+                    2, 60, 5,
+                    help="Select video length between 2-60 seconds"
+                )
+            
+            generate_video_button = st.form_submit_button(
+                "🎥 Generate Video",
+                type="primary"
+            )
         
-        st.markdown("### 🛠️ Troubleshooting Tips")
-        st.markdown("""
-        1. Check your internet connection
-        2. Verify your API keys are correct
-        3. Try a simpler prompt
-        4. Wait a few minutes and try again
-        5. Contact support if the problem persists
-        """)
-
-# =============================================
-# Updated Video Generation Section
-# =============================================
-if generation_mode == "🎥 Video Generation":
-    # [Keep your existing UI code]
+        with col2:
+            st.markdown("### 💡 Video Prompt Tips")
+            st.markdown("""
+            - Describe camera movements
+            - Include lighting and atmosphere
+            - Mention specific actions or events
+            - Add style descriptors
+            """)
+            
+            st.markdown("### 🎨 Style Guide")
+            st.markdown("""
+            - **Realistic**: Photorealistic videos
+            - **3D Rendered**: CGI-style animation
+            - **Cyberpunk**: Neon-lit futuristic scenes
+            - **Anime**: Japanese animation style
+            """)
     
     if generate_video_button and video_prompt:
         st.session_state.generation_status = "generating"
         with st.spinner("🎥 Creating your video masterpiece..."):
             progress_bar = st.progress(0)
             
-            # Simulate progress
             for percent_complete in range(0, 101, 2):
                 time.sleep(0.05)
                 progress_bar.progress(percent_complete)
@@ -289,13 +428,13 @@ if generation_mode == "🎥 Video Generation":
                 st.session_state.task_id = result["task_id"]
                 st.session_state.generation_status = "processing"
                 st.info("⏳ Video is being generated. Please wait...")
-            else:
+            
+            elif result["status"] == "error":
                 st.session_state.generation_status = "error"
                 st.session_state.last_error = result
                 st.error(result["message"])
                 display_error_details(result)
-
-# [Keep all other existing code for image generation, editing, etc.]
+    
     if st.session_state.generation_status == "processing" and st.session_state.task_id:
         with st.spinner("🔄 Checking video generation status..."):
             status = check_video_status(st.session_state.task_id)
@@ -307,8 +446,7 @@ if generation_mode == "🎥 Video Generation":
                     display_video(status["video_url"])
                     st.rerun()
                 else:
-                    st.error("Generated video but missing URL in response")
-                    display_error_details(status)
+                    st.error("Video generated but URL missing in response")
             
             elif status.get("status") == "error":
                 st.session_state.generation_status = "error"
@@ -316,19 +454,17 @@ if generation_mode == "🎥 Video Generation":
                 display_error_details(status)
             
             else:
-                time.sleep(5)  # Wait before checking again
+                time.sleep(5)
                 st.rerun()
     
-    # Display previous result if available
     if st.session_state.generated_video and st.session_state.generation_status == "completed":
         st.markdown("### 🎬 Your Generated Video")
         with st.container():
             st.video(st.session_state.generated_video)
             
-            # Enhanced download button with error handling
             try:
                 video_bytes = requests.get(
-                    st.session_state.generated_video,
+                    st.session_state.generated_video, 
                     stream=True,
                     timeout=30
                 ).content
@@ -343,7 +479,6 @@ if generation_mode == "🎥 Video Generation":
             except Exception as e:
                 st.warning(f"Video download currently unavailable: {str(e)}")
     
-    # Enhanced example prompts section
     with st.expander("💡 Video Example Prompts", expanded=False):
         tab1, tab2, tab3 = st.tabs(["🌆 Scenes", "🎭 Characters", "🎨 Artistic"])
         
@@ -352,26 +487,21 @@ if generation_mode == "🎥 Video Generation":
             **Urban Landscapes:**
             - "Cyberpunk Tokyo at night with holographic advertisements and flying cars, neon reflections on wet streets"
             - "Futuristic megacity with towering skyscrapers and aerial highways, golden hour lighting"
-            
-            **Nature:**
-            - "Serene mountain lake at dawn with mist rising, cinematic drone flyover"
             """)
         
         with tab2:
             st.markdown("""
             **Character Scenes:**
             - "Anime-style warrior in glowing armor battling a dragon, dynamic camera angles"
-            - "Robotic bartender in a neon-lit speakeasy, close-up of mixing drinks"
             """)
         
         with tab3:
             st.markdown("""
             **Artistic Styles:**
             - "Watercolor animation of Paris changing through four seasons"
-            - "Oil painting style portrait of a steampunk inventor in workshop"
             """)
 
-elif generation_mode == "✨ Image Generation":
+elif st.session_state.generation_mode == "✨ Image Generation":
     st.header("🖼️ Image Generation Studio")
     
     with st.form("image_generation_form"):
@@ -384,7 +514,6 @@ elif generation_mode == "✨ Image Generation":
                 placeholder="A cybernetic owl with neon wings perched on a futuristic skyscraper with holographic advertisements..."
             )
 
-            # Advanced image settings
             with st.expander("⚙️ Advanced Settings"):
                 col_style, col_aspect = st.columns(2)
                 
@@ -419,22 +548,12 @@ elif generation_mode == "✨ Image Generation":
             - Mention lighting, style, mood
             - Include futuristic elements
             - Specify composition and perspective
-            - Example: *"A cybernetic samurai standing on a neon-lit rooftop at dusk, intricate armor glowing with circuit patterns"*
-            """)
-            
-            st.markdown("### 🎨 Style Guide")
-            st.markdown("""
-            - **Photorealistic**: Camera-like quality
-            - **3D Rendered**: CGI game asset style
-            - **Cyberpunk**: Neon-noir aesthetic
-            - **Watercolor**: Painterly artistic look
             """)
 
     if generate_image_button and image_prompt:
         with st.spinner("✨ Generating your futuristic vision..."):
             progress_bar = st.progress(0)
 
-            # Smooth progress animation
             for percent_complete in range(0, 101, 2):
                 time.sleep(0.02)
                 progress_bar.progress(percent_complete)
@@ -463,7 +582,6 @@ elif generation_mode == "✨ Image Generation":
                             cols[1].markdown(f"### 🖼️ Generated Image")
                             cols[1].image(image, use_container_width=True, caption=f"{image_style} style image")
 
-                            # Enhanced download options
                             buf = BytesIO()
                             image.save(buf, format="PNG")
                             byte_im = buf.getvalue()
@@ -479,19 +597,11 @@ elif generation_mode == "✨ Image Generation":
 
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
-                st.session_state.last_error = {
-                    "message": str(e),
-                    "type": "image_generation"
-                }
 
-elif generation_mode == "🖌️ Image Editing":
+elif st.session_state.generation_mode == "🖌️ Image Editing":
     st.header("🖌️ Image Editing Studio")
     
-    uploaded_file = st.file_uploader(
-        "Upload an image to edit", 
-        type=["png", "jpg", "jpeg"], 
-        accept_multiple_files=False
-    )
+    uploaded_file = st.file_uploader("Upload an image to edit", type=["png", "jpg", "jpeg"])
     
     if uploaded_file is not None:
         col1, col2 = st.columns(2)
@@ -507,7 +617,6 @@ elif generation_mode == "🖌️ Image Editing":
                 placeholder="Add holographic elements, make the background futuristic, enhance with neon lighting..."
             )
             
-            # Editing style options
             edit_style = st.selectbox(
                 "Editing Style",
                 [
@@ -561,7 +670,6 @@ elif generation_mode == "🖌️ Image Editing":
                                                 use_container_width=True, 
                                                 caption=f"Your enhanced creation ({edit_style} style)")
                                     
-                                    # Enhanced download options
                                     buf = BytesIO()
                                     edited_image.save(buf, format="PNG")
                                     byte_im = buf.getvalue()
@@ -577,16 +685,6 @@ elif generation_mode == "🖌️ Image Editing":
                     
                     except Exception as e:
                         st.error(f"An error occurred during editing: {str(e)}")
-                        st.session_state.last_error = {
-                            "message": str(e),
-                            "type": "image_editing"
-                        }
-
-# Display detailed error if one exists
-if st.session_state.get('last_error'):
-    with st.expander("⚠️ Last Error Details", expanded=False):
-        st.error(st.session_state.last_error["message"])
-        st.json(st.session_state.last_error)
 
 # Footer
 st.markdown("---")
