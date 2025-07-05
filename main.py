@@ -197,7 +197,7 @@ def generate_video(prompt, duration=5, resolution="1080p", style="cinematic"):
 
 def check_video_status(task_id):
     """Check status of a video generation task"""
-    endpoint = f"{KLING_API_URL}/api/v1/video/status/{task_id}"
+    endpoint = f"{KLING_API_URL}"
     
     try:
         response = requests.get(
