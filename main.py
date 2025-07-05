@@ -157,7 +157,7 @@ if "task_id" not in st.session_state:
 # Kling AI Video generation functions
 def generate_video(prompt, duration=5, resolution="1080p", style="cinematic"):
     """Generate video using Kling AI API"""
-    endpoint = f"{KLING_API_URL}/api/v1/video/generate"
+    endpoint = {KLING_API_URL}
     payload = {
         "prompt": prompt,
         "duration": duration,
