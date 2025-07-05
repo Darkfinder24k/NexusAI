@@ -3,7 +3,6 @@ from google import genai
 from google.genai import types
 from PIL import Image
 from io import BytesIO
-import base64
 import time
 import requests
 import json
@@ -66,38 +65,15 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 0 20px rgba(0, 240, 255, 0.9);
 }
 
-/* Animation for generated content */
-@keyframes float {
-    0% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
-    100% { transform: translateY(0px); }
-}
-
-.generated-content {
-    animation: float 4s ease-in-out infinite;
-    border: 2px solid var(--primary);
-    border-radius: 10px;
-    box-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
-    transition: all 0.3s ease;
-}
-
-.generated-content:hover {
-    transform: scale(1.02);
-    box-shadow: 0 0 30px rgba(0, 240, 255, 0.8);
-}
-
-/* Progress bar styling */
 .stProgress>div>div>div {
     background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%) !important;
 }
 
-/* Sidebar styling */
 .css-1d391kg {
     background-color: rgba(10, 10, 26, 0.9) !important;
     border-right: 1px solid var(--primary) !important;
 }
 
-/* Tab styling */
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px;
 }
@@ -118,7 +94,6 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
 }
 
-/* Video container styling */
 .video-container {
     border: 2px solid var(--primary);
     border-radius: 10px;
@@ -153,14 +128,15 @@ if "generation_status" not in st.session_state:
     st.session_state.generation_status = "ready"
 if "task_id" not in st.session_state:
     st.session_state.task_id = None
-if "last_error" not in st.session_state:
-    st.session_state.last_error = None
 
-# Kling AI Video generation functions
+def verify_api_connection():
+    try:
+        response = requests.head(KLING_API_URL, headers=headers, timeout=5)
+        return response.status_code < 500
+    except:
+        return False
+
 def generate_video(prompt, duration=5, resolution="1080p", style="cinematic"):
-    """Generate video using Kling AI API"""
-    endpoint = KLING_API_URL  # Using base URL directly
-    
     payload = {
         "prompt": prompt,
         "duration": duration,
@@ -171,59 +147,35 @@ def generate_video(prompt, duration=5, resolution="1080p", style="cinematic"):
     
     try:
         response = requests.post(
-            endpoint,
+            KLING_API_URL,
             headers=headers,
             json=payload,
             timeout=60
         )
         
-        # Debug raw response
-        print("Raw API Response:", response.text)
-        
         if not response.content:
-            return {
-                "status": "error",
-                "message": "Empty response from API server",
-                "debug": response.text
-            }
+            return {"status": "error", "message": "Empty response from server"}
             
         try:
-            response_json = response.json()
-        except json.JSONDecodeError:
-            return {
-                "status": "error",
-                "message": "Invalid JSON response",
-                "debug": response.text
-            }
-        
+            data = response.json()
+        except ValueError:
+            return {"status": "error", "message": f"Invalid response: {response.text[:100]}"}
+            
         if response.status_code == 200:
-            if "task_id" in response_json:
+            if "task_id" in data:
                 return {
                     "status": "processing",
-                    "task_id": response_json["task_id"],
-                    "message": response_json.get("message", "")
+                    "task_id": data["task_id"],
+                    "message": data.get("message", "")
                 }
-            return {
-                "status": "error",
-                "message": response_json.get("error", "Missing task_id in response"),
-                "debug": response.text
-            }
+            return {"status": "error", "message": data.get("error", "Missing task_id")}
             
-        return {
-            "status": "error",
-            "message": f"API Error {response.status_code}",
-            "debug": response.text
-        }
+        return {"status": "error", "message": f"API Error {response.status_code}"}
         
     except requests.exceptions.RequestException as e:
-        return {
-            "status": "error",
-            "message": f"Request failed: {str(e)}",
-            "debug": str(e)
-        }
+        return {"status": "error", "message": f"Request failed: {str(e)}"}
 
 def check_video_status(task_id):
-    """Check status of a video generation task"""
     try:
         response = requests.post(
             KLING_API_URL,
@@ -239,54 +191,30 @@ def check_video_status(task_id):
             data = response.json()
             if "status" in data:
                 return data
-            return {
-                "status": "error",
-                "message": data.get("error", "Invalid response format")
-            }
-        except json.JSONDecodeError:
-            return {
-                "status": "error",
-                "message": f"Invalid JSON: {response.text[:200]}"
-            }
+            return {"status": "error", "message": "Invalid response format"}
+        except ValueError:
+            return {"status": "error", "message": f"Invalid JSON: {response.text[:100]}"}
             
     except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Status check failed: {str(e)}"
-        }
+        return {"status": "error", "message": f"Status check failed: {str(e)}"}
 
 def display_video(video_url):
-    """Display generated video in Streamlit"""
     try:
         st.video(video_url)
         st.session_state.generated_video = video_url
         
         try:
-            video_bytes = requests.get(video_url, stream=True, timeout=30).content
+            video_bytes = requests.get(video_url, timeout=30).content
             st.download_button(
                 label="📥 Download Video",
                 data=video_bytes,
                 file_name="nexusai_video.mp4",
                 mime="video/mp4"
             )
-        except Exception as e:
-            st.warning(f"Video download unavailable: {str(e)}")
-    
+        except:
+            st.warning("Video download unavailable")
     except Exception as e:
         st.error(f"Failed to display video: {str(e)}")
-
-def display_error_details(error_data):
-    """Show detailed error information"""
-    with st.expander("🚨 Error Details", expanded=False):
-        st.error(error_data.get("message", "Unknown error"))
-        st.code(f"Debug Info:\n{error_data.get('debug', 'No debug info available')}")
-        st.markdown("**Troubleshooting Tips:**")
-        st.markdown("""
-        - Check your internet connection
-        - Verify your API keys are correct
-        - Try a simpler prompt
-        - Wait a few minutes and try again
-        """)
 
 # App header
 st.title("🚀 NexusAI Complete Studio")
@@ -297,17 +225,17 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# Verify API connection
+if not verify_api_connection():
+    st.error("Could not connect to Kling AI API. Please check your connection and API keys.")
+    st.stop()
+
 # Sidebar for settings
 with st.sidebar:
     st.header("⚙️ Control Panel")
     st.markdown("---")
     
-    # Initialize generation_mode in session state
-    if "generation_mode" not in st.session_state:
-        st.session_state.generation_mode = "🎥 Video Generation"
-    
-    # Mode selection
-    st.session_state.generation_mode = st.selectbox(
+    generation_mode = st.selectbox(
         "Generation Mode",
         ["🎥 Video Generation", "✨ Image Generation", "🖌️ Image Editing"],
         index=0
@@ -315,20 +243,16 @@ with st.sidebar:
     
     st.markdown("---")
     
-    if st.session_state.generation_mode == "🎥 Video Generation":
+    if generation_mode == "🎥 Video Generation":
         st.subheader("Video Settings")
         duration = st.slider("Duration (seconds)", 2, 60, 5)
         resolution = st.selectbox("Resolution", ["720p", "1080p", "4K"], index=1)
         video_style = st.selectbox("Video Style", [
-            "cinematic", 
-            "realistic", 
-            "anime", 
-            "3d-animation", 
-            "watercolor", 
-            "cyberpunk"
+            "cinematic", "realistic", "anime", 
+            "3d-animation", "watercolor", "cyberpunk"
         ], index=0)
     
-    elif st.session_state.generation_mode in ["✨ Image Generation", "🖌️ Image Editing"]:
+    elif generation_mode in ["✨ Image Generation", "🖌️ Image Editing"]:
         st.subheader("Image Settings")
         image_style = st.selectbox(
             "Image Style",
@@ -345,68 +269,20 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # Main content area
-if st.session_state.generation_mode == "🎥 Video Generation":
+if generation_mode == "🎥 Video Generation":
     st.header("🎬 Video Generation Studio")
     
     with st.form("video_generation_form"):
-        col1, col2 = st.columns([2, 1])
+        video_prompt = st.text_area(
+            "Describe your video...",
+            height=200,
+            placeholder="A futuristic cityscape at night with flying cars and neon lights..."
+        )
         
-        with col1:
-            video_prompt = st.text_area(
-                "Describe your video...",
-                height=200,
-                placeholder="A futuristic cityscape at night with flying cars and neon lights, cinematic camera movement..."
-            )
-            
-            with st.expander("⚙️ Advanced Settings"):
-                col_res, col_style = st.columns(2)
-                
-                with col_res:
-                    resolution = st.selectbox(
-                        "Resolution",
-                        ["480p", "720p", "1080p", "2K", "4K", "8K", "12K"],
-                        index=2
-                    )
-                
-                with col_style:
-                    video_style = st.selectbox(
-                        "Video Style",
-                        [
-                            "3D Rendered", "Cyberpunk", "Sci-Fi", 
-                            "Futuristic", "Neon", "Holographic",
-                            "Realistic", "Anime", "Watercolor",
-                            "Cinematic", "Oil Painting", "Steampunk"
-                        ],
-                        index=6
-                    )
-                
-                duration = st.slider(
-                    "Duration (seconds)",
-                    2, 60, 5,
-                    help="Select video length between 2-60 seconds"
-                )
-            
-            generate_video_button = st.form_submit_button(
-                "🎥 Generate Video",
-                type="primary"
-            )
-        
-        with col2:
-            st.markdown("### 💡 Video Prompt Tips")
-            st.markdown("""
-            - Describe camera movements
-            - Include lighting and atmosphere
-            - Mention specific actions or events
-            - Add style descriptors
-            """)
-            
-            st.markdown("### 🎨 Style Guide")
-            st.markdown("""
-            - **Realistic**: Photorealistic videos
-            - **3D Rendered**: CGI-style animation
-            - **Cyberpunk**: Neon-lit futuristic scenes
-            - **Anime**: Japanese animation style
-            """)
+        generate_video_button = st.form_submit_button(
+            "🎥 Generate Video",
+            type="primary"
+        )
     
     if generate_video_button and video_prompt:
         st.session_state.generation_status = "generating"
@@ -428,12 +304,9 @@ if st.session_state.generation_mode == "🎥 Video Generation":
                 st.session_state.task_id = result["task_id"]
                 st.session_state.generation_status = "processing"
                 st.info("⏳ Video is being generated. Please wait...")
-            
-            elif result["status"] == "error":
+            else:
                 st.session_state.generation_status = "error"
-                st.session_state.last_error = result
                 st.error(result["message"])
-                display_error_details(result)
     
     if st.session_state.generation_status == "processing" and st.session_state.task_id:
         with st.spinner("🔄 Checking video generation status..."):
@@ -447,108 +320,31 @@ if st.session_state.generation_mode == "🎥 Video Generation":
                     st.rerun()
                 else:
                     st.error("Video generated but URL missing in response")
-            
             elif status.get("status") == "error":
                 st.session_state.generation_status = "error"
                 st.error(status["message"])
-                display_error_details(status)
-            
             else:
                 time.sleep(5)
                 st.rerun()
     
     if st.session_state.generated_video and st.session_state.generation_status == "completed":
         st.markdown("### 🎬 Your Generated Video")
-        with st.container():
-            st.video(st.session_state.generated_video)
-            
-            try:
-                video_bytes = requests.get(
-                    st.session_state.generated_video, 
-                    stream=True,
-                    timeout=30
-                ).content
-                
-                st.download_button(
-                    label="⬇️ Download HD Video",
-                    data=video_bytes,
-                    file_name=f"nexusai_{video_style.lower()}_{resolution}.mp4",
-                    mime="video/mp4",
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.warning(f"Video download currently unavailable: {str(e)}")
-    
-    with st.expander("💡 Video Example Prompts", expanded=False):
-        tab1, tab2, tab3 = st.tabs(["🌆 Scenes", "🎭 Characters", "🎨 Artistic"])
-        
-        with tab1:
-            st.markdown("""
-            **Urban Landscapes:**
-            - "Cyberpunk Tokyo at night with holographic advertisements and flying cars, neon reflections on wet streets"
-            - "Futuristic megacity with towering skyscrapers and aerial highways, golden hour lighting"
-            """)
-        
-        with tab2:
-            st.markdown("""
-            **Character Scenes:**
-            - "Anime-style warrior in glowing armor battling a dragon, dynamic camera angles"
-            """)
-        
-        with tab3:
-            st.markdown("""
-            **Artistic Styles:**
-            - "Watercolor animation of Paris changing through four seasons"
-            """)
+        st.video(st.session_state.generated_video)
 
-elif st.session_state.generation_mode == "✨ Image Generation":
+elif generation_mode == "✨ Image Generation":
     st.header("🖼️ Image Generation Studio")
     
     with st.form("image_generation_form"):
-        col1, col2 = st.columns([2, 1])
+        image_prompt = st.text_area(
+            "Describe your vision...",
+            height=200,
+            placeholder="A cybernetic owl with neon wings perched on a futuristic skyscraper..."
+        )
 
-        with col1:
-            image_prompt = st.text_area(
-                "Describe your vision...",
-                height=200,
-                placeholder="A cybernetic owl with neon wings perched on a futuristic skyscraper with holographic advertisements..."
-            )
-
-            with st.expander("⚙️ Advanced Settings"):
-                col_style, col_aspect = st.columns(2)
-                
-                with col_style:
-                    image_style = st.selectbox(
-                        "Image Style",
-                        [
-                            "3D Rendered", "Cyberpunk", "Sci-Fi", 
-                            "Futuristic", "Neon", "Holographic",
-                            "Photorealistic", "Anime", "Watercolor",
-                            "Oil Painting", "Steampunk", "Low Poly"
-                        ],
-                        index=2
-                    )
-                
-                with col_aspect:
-                    aspect_ratio = st.selectbox(
-                        "Aspect Ratio",
-                        ["1:1 (Square)", "4:3 (Standard)", "16:9 (Widescreen)", "9:16 (Portrait)", "2:3 (Vertical)"],
-                        index=0
-                    )
-
-            generate_image_button = st.form_submit_button(
-                "✨ Generate Image",
-                type="primary"
-            )
-
-        with col2:
-            st.markdown("### 💡 Image Prompt Tips")
-            st.markdown("""
-            - Be descriptive with details
-            - Mention lighting, style, mood
-            - Include futuristic elements
-            - Specify composition and perspective
-            """)
+        generate_image_button = st.form_submit_button(
+            "✨ Generate Image",
+            type="primary"
+        )
 
     if generate_image_button and image_prompt:
         with st.spinner("✨ Generating your futuristic vision..."):
@@ -559,38 +355,27 @@ elif st.session_state.generation_mode == "✨ Image Generation":
                 progress_bar.progress(percent_complete)
 
             try:
-                enhanced_prompt = f"{image_prompt}, {image_style} style, ultra HD, {aspect_ratio.split(' ')[0]} aspect ratio"
-
                 response = client.models.generate_content(
                     model='gemini-2.0-flash-preview-image-generation',
-                    contents=enhanced_prompt,
+                    contents=image_prompt,
                     config=types.GenerateContentConfig(
                         response_modalities=['TEXT', 'IMAGE']
                     )
                 )
 
                 if response.candidates and response.candidates[0].content.parts:
-                    st.success("✨ Generation complete! Behold your creation!")
-
-                    cols = st.columns(2)
-                    for i, part in enumerate(response.candidates[0].content.parts):
-                        if part.text is not None:
-                            cols[0].markdown(f"### 🤖 AI Notes")
-                            cols[0].write(part.text)
-                        elif part.inline_data is not None:
+                    st.success("✨ Generation complete!")
+                    for part in response.candidates[0].content.parts:
+                        if part.inline_data is not None:
                             image = Image.open(BytesIO((part.inline_data.data)))
-                            cols[1].markdown(f"### 🖼️ Generated Image")
-                            cols[1].image(image, use_container_width=True, caption=f"{image_style} style image")
-
+                            st.image(image, use_container_width=True)
                             buf = BytesIO()
                             image.save(buf, format="PNG")
-                            byte_im = buf.getvalue()
-                            cols[1].download_button(
-                                label="📥 Download HD Image",
-                                data=byte_im,
-                                file_name=f"nexusai_{image_style.lower().replace(' ', '_')}.png",
-                                mime="image/png",
-                                use_container_width=True
+                            st.download_button(
+                                label="📥 Download Image",
+                                data=buf.getvalue(),
+                                file_name="nexusai_image.png",
+                                mime="image/png"
                             )
                 else:
                     st.error("No image was generated. Please try a different prompt.")
@@ -598,99 +383,68 @@ elif st.session_state.generation_mode == "✨ Image Generation":
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
 
-elif st.session_state.generation_mode == "🖌️ Image Editing":
+elif generation_mode == "🖌️ Image Editing":
     st.header("🖌️ Image Editing Studio")
     
     uploaded_file = st.file_uploader("Upload an image to edit", type=["png", "jpg", "jpeg"])
     
     if uploaded_file is not None:
-        col1, col2 = st.columns(2)
+        original_image = Image.open(uploaded_file)
+        st.image(original_image, caption="Original Image", use_container_width=True)
         
-        with col1:
-            original_image = Image.open(uploaded_file)
-            st.image(original_image, caption="Original Image", use_container_width=True)
+        edit_instructions = st.text_area(
+            "Editing instructions",
+            height=150,
+            placeholder="Add holographic elements, make the background futuristic..."
+        )
         
-        with col2:
-            edit_instructions = st.text_area(
-                "Editing instructions",
-                height=150,
-                placeholder="Add holographic elements, make the background futuristic, enhance with neon lighting..."
-            )
-            
-            edit_style = st.selectbox(
-                "Editing Style",
-                [
-                    "Match Original", "Cyberpunk", "Sci-Fi", 
-                    "Futuristic", "Neon", "Holographic",
-                    "Realistic", "Anime", "Watercolor"
-                ],
-                index=0
-            )
-            
-            edit_button = st.button(
-                "🖌️ Apply Edits",
-                use_container_width=True,
-                type="primary"
-            )
-            
-            if edit_button and edit_instructions:
-                with st.spinner("🖌️ Transforming your image..."):
-                    progress_bar = st.progress(0)
-                    
-                    for percent_complete in range(0, 101, 5):
-                        time.sleep(0.05)
-                        progress_bar.progress(percent_complete)
-                    
-                    try:
-                        contents = [
-                            f"{edit_instructions} ({edit_style} style)",
-                            original_image
-                        ]
-                        
-                        response = client.models.generate_content(
-                            model="gemini-2.0-flash-preview-image-generation",
-                            contents=contents,
-                            config=types.GenerateContentConfig(
-                                response_modalities=['TEXT', 'IMAGE']
-                            )
+        edit_button = st.button(
+            "🖌️ Apply Edits",
+            type="primary"
+        )
+        
+        if edit_button and edit_instructions:
+            with st.spinner("🖌️ Transforming your image..."):
+                progress_bar = st.progress(0)
+                
+                for percent_complete in range(0, 101, 5):
+                    time.sleep(0.05)
+                    progress_bar.progress(percent_complete)
+                
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-2.0-flash-preview-image-generation",
+                        contents=[edit_instructions, original_image],
+                        config=types.GenerateContentConfig(
+                            response_modalities=['TEXT', 'IMAGE']
                         )
-                        
-                        if response.candidates and response.candidates[0].content.parts:
-                            st.success("🎨 Edit complete!")
-                            
-                            cols = st.columns(2)
-                            for i, part in enumerate(response.candidates[0].content.parts):
-                                if part.text is not None:
-                                    cols[0].markdown(f"### 🤖 AI Notes")
-                                    cols[0].write(part.text)
-                                elif part.inline_data is not None:
-                                    edited_image = Image.open(BytesIO(part.inline_data.data))
-                                    cols[1].markdown(f"### 🖼️ Edited Image")
-                                    cols[1].image(edited_image, 
-                                                use_container_width=True, 
-                                                caption=f"Your enhanced creation ({edit_style} style)")
-                                    
-                                    buf = BytesIO()
-                                    edited_image.save(buf, format="PNG")
-                                    byte_im = buf.getvalue()
-                                    cols[1].download_button(
-                                        label="📥 Download Edited Image",
-                                        data=byte_im,
-                                        file_name=f"nexusai_edited_{edit_style.lower().replace(' ', '_')}.png",
-                                        mime="image/png",
-                                        use_container_width=True
-                                    )
-                        else:
-                            st.error("The image could not be edited. Please try different instructions.")
+                    )
                     
-                    except Exception as e:
-                        st.error(f"An error occurred during editing: {str(e)}")
+                    if response.candidates and response.candidates[0].content.parts:
+                        st.success("🎨 Edit complete!")
+                        for part in response.candidates[0].content.parts:
+                            if part.inline_data is not None:
+                                edited_image = Image.open(BytesIO(part.inline_data.data))
+                                st.image(edited_image, use_container_width=True)
+                                buf = BytesIO()
+                                edited_image.save(buf, format="PNG")
+                                st.download_button(
+                                    label="📥 Download Edited Image",
+                                    data=buf.getvalue(),
+                                    file_name="nexusai_edited.png",
+                                    mime="image/png"
+                                )
+                    else:
+                        st.error("The image could not be edited. Please try different instructions.")
+                
+                except Exception as e:
+                    st.error(f"An error occurred during editing: {str(e)}")
 
 # Footer
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; margin-top: 50px; padding: 20px; border-top: 1px solid var(--primary);">
     <p>© 2025 NexusAI Complete Studio | All Rights Reserved</p>
-    <p>Powered by cutting-edge AI technology - Video Generation via Kling AI & Image Generation via Gemini AI</p>
+    <p>Powered by cutting-edge AI technology</p>
 </div>
 """, unsafe_allow_html=True)
