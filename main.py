@@ -116,13 +116,23 @@ h1, h2, h3, h4, h5, h6 {
     font-weight: bold;
     box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
 }
+
+/* Video player styling */
+video {
+    border: 2px solid var(--primary);
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+    width: 100%;
+    margin-bottom: 20px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# A4F API configuration for image generation
+# A4F API configuration
 A4F_API_KEY = "ddc-a4f-b752e3e2936149f49b1b306953e0eaab"
 A4F_BASE_URL = "https://api.a4f.co/v1"
-MODEL_NAME = "provider-4/imagen-4"
+IMAGE_MODEL = "provider-4/imagen-4"
+VIDEO_MODEL = "provider-6/wan-2.1"
 
 # Initialize Gemini client for image editing
 @st.cache_resource
@@ -135,7 +145,7 @@ client = init_client()
 st.title("🚀 NexusAI Image Studio")
 st.markdown("""
 <div style="text-align: center; margin-bottom: 30px;">
-    <h3>The most advanced AI image generation platform in the universe</h3>
+    <h3>The most advanced AI image and video generation platform in the universe</h3>
     <p>Create stunning futuristic visuals with the power of Nexus AI</p>
 </div>
 """, unsafe_allow_html=True)
@@ -149,6 +159,12 @@ with st.sidebar:
         "Image Style",
         ["3D Rendered", "Cyberpunk", "Sci-Fi", "Futuristic", "Neon", "Holographic"],
         index=2
+    )
+    
+    video_style = st.selectbox(
+        "Video Style",
+        ["Cinematic", "Anime", "Realistic", "Cyberpunk", "Sci-Fi", "Futuristic"],
+        index=0
     )
     
     st.markdown("---")
@@ -169,7 +185,7 @@ def generate_image(prompt, style):
     enhanced_prompt = f"{prompt}, {style} style, ultra HD, photorealistic, cinematic lighting"
     
     payload = {
-        "model": MODEL_NAME,
+        "model": IMAGE_MODEL,
         "prompt": enhanced_prompt,
         "num_images": 1,
         "width": 1024,
@@ -197,8 +213,44 @@ def generate_image(prompt, style):
         st.error(f"API Error: {str(e)}")
         return None
 
+def generate_video(prompt, style):
+    """Generate video using A4F API"""
+    headers = {
+        "Authorization": f"Bearer {A4F_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    enhanced_prompt = f"{prompt}, {style} style, cinematic, high quality, 4K resolution"
+    
+    payload = {
+        "model": VIDEO_MODEL,
+        "prompt": enhanced_prompt,
+        "num_videos": 1,
+        "width": 1024,
+        "height": 576,
+        "duration": 4,  # 4 seconds
+        "fps": 24
+    }
+    
+    try:
+        response = requests.post(
+            f"{A4F_BASE_URL}/videos/generations",
+            headers=headers,
+            json=payload
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if 'data' in result and len(result['data']) > 0:
+                video_url = result['data'][0]['url']
+                return video_url
+        return None
+    except Exception as e:
+        st.error(f"API Error: {str(e)}")
+        return None
+
 # Main content area with tabs
-tab1, tab2 = st.tabs(["✨ Generate", "🖌️ Edit"])
+tab1, tab2, tab3 = st.tabs(["✨ Generate Image", "🎥 Generate Video", "🖌️ Edit Image"])
 
 with tab1:
     with st.form("image_generation_form"):
@@ -264,6 +316,60 @@ with tab1:
                 st.error(f"An error occurred: {str(e)}")
 
 with tab2:
+    with st.form("video_generation_form"):
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            video_prompt = st.text_area(
+                "Describe your video...",
+                height=200,
+                placeholder="A futuristic cityscape at night with flying cars zooming between neon-lit skyscrapers, cinematic view"
+            )
+
+            generate_video_button = st.form_submit_button(
+                "Generate Video",
+                type="primary"
+            )
+
+        with col2:
+            st.markdown("### 💡 Video Prompt Tips")
+            st.markdown("""
+            - Describe the action and movement
+            - Specify camera angles if important
+            - Mention lighting and atmosphere
+            - Example: "A spaceship landing on a alien planet with glowing vegetation, cinematic wide shot"
+            """)
+
+    if generate_video_button and video_prompt:
+        with st.spinner("Creating your cinematic masterpiece..."):
+            progress_bar = st.progress(0)
+
+            for percent_complete in range(100):
+                time.sleep(0.05)  # Slightly longer for video generation
+                progress_bar.progress(percent_complete + 1)
+
+            try:
+                video_url = generate_video(video_prompt, video_style)
+                
+                if video_url:
+                    st.success("🎬 Video generation complete!")
+                    
+                    st.markdown("### Generated Video")
+                    st.video(video_url)
+                    
+                    st.download_button(
+                        label="Download Video",
+                        data=requests.get(video_url).content,
+                        file_name="nexusai_video.mp4",
+                        mime="video/mp4"
+                    )
+                else:
+                    st.error("No video was generated. Please try a different prompt.")
+
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
+
+with tab3:
     st.markdown("## 🖌️ Image Editing Studio")
     
     uploaded_file = st.file_uploader("Upload an image to edit", type=["png", "jpg", "jpeg"])
