@@ -10,7 +10,7 @@ import json
 
 # Configure page
 st.set_page_config(
-    page_title="NexusAI Image Studio",
+    page_title="NexusAI Creative Studio",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -65,7 +65,6 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 0 20px rgba(0, 240, 255, 0.9);
 }
 
-/* Animation for generated images */
 @keyframes float {
     0% { transform: translateY(0px); }
     50% { transform: translateY(-10px); }
@@ -85,18 +84,15 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 0 30px rgba(0, 240, 255, 0.8);
 }
 
-/* Progress bar styling */
 .stProgress>div>div>div {
     background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%) !important;
 }
 
-/* Sidebar styling */
 .css-1d391kg {
     background-color: rgba(10, 10, 26, 0.9) !important;
     border-right: 1px solid var(--primary) !important;
 }
 
-/* Tab styling */
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px;
 }
@@ -117,7 +113,6 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
 }
 
-/* Video player styling */
 video {
     border: 2px solid var(--primary);
     border-radius: 10px;
@@ -125,12 +120,16 @@ video {
     width: 100%;
     margin-bottom: 20px;
 }
+
+.generated-video {
+    animation: float 6s ease-in-out infinite;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# A4F API configuration
+# API Configuration - URL is fixed exactly as specified
 A4F_API_KEY = "ddc-a4f-b752e3e2936149f49b1b306953e0eaab"
-A4F_BASE_URL = "https://api.a4f.co/v1"
+A4F_BASE_URL = "https://api.a4f.co/v1"  # This exact URL remains unchanged
 IMAGE_MODEL = "provider-4/imagen-4"
 VIDEO_MODEL = "provider-6/wan-2.1"
 
@@ -142,11 +141,11 @@ def init_client():
 client = init_client()
 
 # App header
-st.title("🚀 NexusAI Image Studio")
+st.title("🚀 NexusAI Creative Studio")
 st.markdown("""
 <div style="text-align: center; margin-bottom: 30px;">
-    <h3>The most advanced AI image and video generation platform in the universe</h3>
-    <p>Create stunning futuristic visuals with the power of Nexus AI</p>
+    <h3>The ultimate AI image and video generation platform</h3>
+    <p>Create stunning futuristic content with cutting-edge AI</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -171,12 +170,12 @@ with st.sidebar:
     st.markdown("""
     <div style="text-align: center;">
         <p>Powered by Quantora AI</p>
-        <p>v2.3.7 | Nexus Core</p>
+        <p>v3.0.0 | Nexus Core</p>
     </div>
     """, unsafe_allow_html=True)
 
 def generate_image(prompt, style):
-    """Generate image using A4F API"""
+    """Generate image using A4F API with fixed URL"""
     headers = {
         "Authorization": f"Bearer {A4F_API_KEY}",
         "Content-Type": "application/json"
@@ -196,16 +195,17 @@ def generate_image(prompt, style):
     
     try:
         response = requests.post(
-            f"{A4F_BASE_URL}/images/generations",
+            f"{A4F_BASE_URL}/images/generations",  # Using the exact fixed URL
             headers=headers,
-            json=payload
+            json=payload,
+            timeout=30
         )
         
         if response.status_code == 200:
             result = response.json()
             if 'data' in result and len(result['data']) > 0:
                 image_url = result['data'][0]['url']
-                image_response = requests.get(image_url)
+                image_response = requests.get(image_url, timeout=30)
                 if image_response.status_code == 200:
                     return Image.open(BytesIO(image_response.content))
         return None
@@ -214,7 +214,7 @@ def generate_image(prompt, style):
         return None
 
 def generate_video(prompt, style):
-    """Generate video using A4F API"""
+    """Generate video using A4F API with fixed URL"""
     headers = {
         "Authorization": f"Bearer {A4F_API_KEY}",
         "Content-Type": "application/json"
@@ -228,29 +228,29 @@ def generate_video(prompt, style):
         "num_videos": 1,
         "width": 1024,
         "height": 576,
-        "duration": 4,  # 4 seconds
+        "duration": 4,
         "fps": 24
     }
     
     try:
         response = requests.post(
-            f"{A4F_BASE_URL}/videos/generations",
+            f"{A4F_BASE_URL}/videos/generations",  # Using the exact fixed URL
             headers=headers,
-            json=payload
+            json=payload,
+            timeout=60
         )
         
         if response.status_code == 200:
             result = response.json()
             if 'data' in result and len(result['data']) > 0:
-                video_url = result['data'][0]['url']
-                return video_url
+                return result['data'][0]['url']
         return None
     except Exception as e:
         st.error(f"API Error: {str(e)}")
         return None
 
 # Main content area with tabs
-tab1, tab2, tab3 = st.tabs(["✨ Generate Image", "🎥 Generate Video", "🖌️ Edit Image"])
+tab1, tab2, tab3 = st.tabs(["🖼️ Generate Image", "🎥 Generate Video", "🖌️ Edit Image"])
 
 with tab1:
     with st.form("image_generation_form"):
@@ -258,9 +258,9 @@ with tab1:
 
         with col1:
             prompt = st.text_area(
-                "Describe your vision...",
+                "Describe your image...",
                 height=200,
-                placeholder="A cybernetic owl with neon wings perched on a futuristic skyscraper with holographic advertisements in the background..."
+                placeholder="A cybernetic owl with neon wings perched on a futuristic skyscraper..."
             )
 
             generate_button = st.form_submit_button(
@@ -272,48 +272,49 @@ with tab1:
             st.markdown("### 💡 Prompt Tips")
             st.markdown("""
             - Be descriptive with details
-            - Mention lighting, style, mood
+            - Mention lighting and style
             - Include futuristic elements
-            - Example: "A floating city at sunset with neon lights reflecting on the water, in cyberpunk style"
+            - Example: "A floating city at sunset with neon lights"
             """)
 
     if generate_button and prompt:
-        with st.spinner("Generating your futuristic vision..."):
+        with st.spinner("Generating your vision..."):
             progress_bar = st.progress(0)
-
+            
             for percent_complete in range(100):
                 time.sleep(0.02)
                 progress_bar.progress(percent_complete + 1)
-
+            
             try:
                 generated_image = generate_image(prompt, image_style)
                 
                 if generated_image:
-                    st.success("✨ Generation complete! Behold your creation!")
+                    st.success("✨ Image generation complete!")
                     
                     cols = st.columns(2)
                     cols[0].markdown("### AI Notes")
-                    cols[0].write("Here's your generated image based on your prompt. The AI has created a unique interpretation of your vision.")
+                    cols[0].write("Your futuristic image has been created!")
                     
                     cols[1].markdown("### Generated Image")
-                    cols[1].image(generated_image, use_container_width=True, caption="Your futuristic creation",
-                                  output_format="PNG")
+                    cols[1].image(generated_image, 
+                                use_container_width=True, 
+                                caption="Your creation",
+                                output_format="PNG")
 
-                    # Save option
                     buf = BytesIO()
                     generated_image.save(buf, format="PNG")
                     byte_im = buf.getvalue()
                     cols[1].download_button(
                         label="Download Image",
                         data=byte_im,
-                        file_name="nexusai_generation.png",
+                        file_name="nexusai_image.png",
                         mime="image/png"
                     )
                 else:
-                    st.error("No image was generated. Please try a different prompt.")
-
+                    st.error("Image generation failed. Please try again.")
+            
             except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
+                st.error(f"Error: {str(e)}")
 
 with tab2:
     with st.form("video_generation_form"):
@@ -323,7 +324,7 @@ with tab2:
             video_prompt = st.text_area(
                 "Describe your video...",
                 height=200,
-                placeholder="A futuristic cityscape at night with flying cars zooming between neon-lit skyscrapers, cinematic view"
+                placeholder="Flying cars zooming between neon-lit skyscrapers at night..."
             )
 
             generate_video_button = st.form_submit_button(
@@ -332,42 +333,46 @@ with tab2:
             )
 
         with col2:
-            st.markdown("### 💡 Video Prompt Tips")
+            st.markdown("### 💡 Video Tips")
             st.markdown("""
-            - Describe the action and movement
-            - Specify camera angles if important
-            - Mention lighting and atmosphere
-            - Example: "A spaceship landing on a alien planet with glowing vegetation, cinematic wide shot"
+            - Describe movement and action
+            - Specify camera angles
+            - Example: "A spaceship landing on an alien planet"
             """)
 
     if generate_video_button and video_prompt:
-        with st.spinner("Creating your cinematic masterpiece..."):
+        with st.spinner("Creating your video..."):
             progress_bar = st.progress(0)
-
+            
             for percent_complete in range(100):
-                time.sleep(0.05)  # Slightly longer for video generation
+                time.sleep(0.05)
                 progress_bar.progress(percent_complete + 1)
-
+            
             try:
                 video_url = generate_video(video_prompt, video_style)
                 
                 if video_url:
                     st.success("🎬 Video generation complete!")
+                    st.markdown("### Your Generated Video")
                     
-                    st.markdown("### Generated Video")
+                    # Display video with animation
+                    st.markdown('<div class="generated-video">', unsafe_allow_html=True)
                     st.video(video_url)
+                    st.markdown('</div>', unsafe_allow_html=True)
                     
+                    # Download button
+                    video_data = requests.get(video_url).content
                     st.download_button(
                         label="Download Video",
-                        data=requests.get(video_url).content,
+                        data=video_data,
                         file_name="nexusai_video.mp4",
                         mime="video/mp4"
                     )
                 else:
-                    st.error("No video was generated. Please try a different prompt.")
-
+                    st.error("Video generation failed. Please try again.")
+            
             except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
+                st.error(f"Error: {str(e)}")
 
 with tab3:
     st.markdown("## 🖌️ Image Editing Studio")
@@ -385,7 +390,7 @@ with tab3:
             edit_instructions = st.text_area(
                 "Editing instructions",
                 height=150,
-                placeholder="Add a llama next to me, make the background futuristic, add holographic elements..."
+                placeholder="Make the background futuristic, add holographic elements..."
             )
             
             edit_button = st.button(
@@ -395,7 +400,7 @@ with tab3:
             )
             
             if edit_button and edit_instructions:
-                with st.spinner("Transforming your image..."):
+                with st.spinner("Editing your image..."):
                     progress_bar = st.progress(0)
                     
                     for percent_complete in range(100):
@@ -403,7 +408,6 @@ with tab3:
                         progress_bar.progress(percent_complete + 1)
                     
                     try:
-                        # Create the content parts for Gemini
                         contents = [
                             edit_instructions,
                             original_image
@@ -430,10 +434,9 @@ with tab3:
                                     cols[1].markdown(f"### Edited Image")
                                     cols[1].image(edited_image, 
                                                 use_container_width=True, 
-                                                caption="Your enhanced creation", 
+                                                caption="Enhanced creation", 
                                                 output_format="PNG")
                                     
-                                    # Save option
                                     buf = BytesIO()
                                     edited_image.save(buf, format="PNG")
                                     byte_im = buf.getvalue()
@@ -444,15 +447,15 @@ with tab3:
                                         mime="image/png"
                                     )
                         else:
-                            st.error("The image could not be edited. Please try different instructions.")
+                            st.error("Editing failed. Please try different instructions.")
                     
                     except Exception as e:
-                        st.error(f"An error occurred during editing: {str(e)}")
+                        st.error(f"Error: {str(e)}")
 
 # Footer
 st.markdown("""
 <div style="text-align: center; margin-top: 50px; padding: 20px; border-top: 1px solid var(--primary);">
     <p>© 2025 NexusAI Studios | All Rights Reserved</p>
-    <p>Powered by the cutting-edge Quantora AI technology</p>
+    <p>Using fixed API URL: https://api.a4f.co/v1</p>
 </div>
 """, unsafe_allow_html=True)
