@@ -5,6 +5,8 @@ from PIL import Image
 from io import BytesIO
 import base64
 import time
+import requests
+import json
 
 # Configure page
 st.set_page_config(
@@ -117,7 +119,12 @@ h1, h2, h3, h4, h5, h6 {
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize Gemini client
+# A4F API configuration for image generation
+A4F_API_KEY = "ddc-a4f-b752e3e2936149f49b1b306953e0eaab"
+A4F_BASE_URL = "https://api.a4f.co/v1"
+MODEL_NAME = "provider-4/imagen-4"
+
+# Initialize Gemini client for image editing
 @st.cache_resource
 def init_client():
     return genai.Client(api_key='AIzaSyCZ-1xA0qHy7p3l5VdZYCrvoaQhpMZLjig')
@@ -151,6 +158,44 @@ with st.sidebar:
         <p>v2.3.7 | Nexus Core</p>
     </div>
     """, unsafe_allow_html=True)
+
+def generate_image(prompt, style):
+    """Generate image using A4F API"""
+    headers = {
+        "Authorization": f"Bearer {A4F_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    enhanced_prompt = f"{prompt}, {style} style, ultra HD, photorealistic, cinematic lighting"
+    
+    payload = {
+        "model": MODEL_NAME,
+        "prompt": enhanced_prompt,
+        "num_images": 1,
+        "width": 1024,
+        "height": 1024,
+        "steps": 50,
+        "guidance_scale": 7.5
+    }
+    
+    try:
+        response = requests.post(
+            f"{A4F_BASE_URL}/images/generations",
+            headers=headers,
+            json=payload
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if 'data' in result and len(result['data']) > 0:
+                image_url = result['data'][0]['url']
+                image_response = requests.get(image_url)
+                if image_response.status_code == 200:
+                    return Image.open(BytesIO(image_response.content))
+        return None
+    except Exception as e:
+        st.error(f"API Error: {str(e)}")
+        return None
 
 # Main content area with tabs
 tab1, tab2 = st.tabs(["✨ Generate", "🖌️ Edit"])
@@ -189,41 +234,29 @@ with tab1:
                 progress_bar.progress(percent_complete + 1)
 
             try:
-                # Enhanced prompt with style
-                enhanced_prompt = f"{prompt}, {image_style} style, ultra HD, photorealistic, cinematic lighting"
-
-                response = client.models.generate_content(
-                    model='gemini-2.0-flash-preview-image-generation',
-                    contents=enhanced_prompt,
-                    config=types.GenerateContentConfig(
-                        response_modalities=['TEXT', 'IMAGE']
-                    )
-                )
-
-                if response.candidates and response.candidates[0].content.parts:
+                generated_image = generate_image(prompt, image_style)
+                
+                if generated_image:
                     st.success("✨ Generation complete! Behold your creation!")
-
+                    
                     cols = st.columns(2)
-                    for i, part in enumerate(response.candidates[0].content.parts):
-                        if part.text is not None:
-                            cols[0].markdown(f"### AI Notes")
-                            cols[0].write(part.text)
-                        elif part.inline_data is not None:
-                            image = Image.open(BytesIO((part.inline_data.data)))
-                            cols[1].markdown(f"### Generated Image")
-                            cols[1].image(image, use_container_width=True, caption="Your futuristic creation",
-                                          output_format="PNG")
+                    cols[0].markdown("### AI Notes")
+                    cols[0].write("Here's your generated image based on your prompt. The AI has created a unique interpretation of your vision.")
+                    
+                    cols[1].markdown("### Generated Image")
+                    cols[1].image(generated_image, use_container_width=True, caption="Your futuristic creation",
+                                  output_format="PNG")
 
-                            # Save option
-                            buf = BytesIO()
-                            image.save(buf, format="PNG")
-                            byte_im = buf.getvalue()
-                            cols[1].download_button(
-                                label="Download Image",
-                                data=byte_im,
-                                file_name="nexusai_generation.png",
-                                mime="image/png"
-                            )
+                    # Save option
+                    buf = BytesIO()
+                    generated_image.save(buf, format="PNG")
+                    byte_im = buf.getvalue()
+                    cols[1].download_button(
+                        label="Download Image",
+                        data=byte_im,
+                        file_name="nexusai_generation.png",
+                        mime="image/png"
+                    )
                 else:
                     st.error("No image was generated. Please try a different prompt.")
 
@@ -264,7 +297,7 @@ with tab2:
                         progress_bar.progress(percent_complete + 1)
                     
                     try:
-                        # Create the content parts
+                        # Create the content parts for Gemini
                         contents = [
                             edit_instructions,
                             original_image
