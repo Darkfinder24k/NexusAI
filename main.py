@@ -195,7 +195,7 @@ def generate_image(prompt, style):
     
     try:
         response = requests.post(
-            f"{A4F_BASE_URL}",  # Using the exact fixed URL
+            f"{A4F_BASE_URL}/v1/images/generations",  # Using the exact fixed URL
             headers=headers,
             json=payload,
             timeout=30
@@ -234,7 +234,7 @@ def generate_video(prompt, style):
     
     try:
         response = requests.post(
-            f"{A4F_BASE_URL}",  # Using the exact fixed URL
+            f"{A4F_BASE_URL}/v1/video/generations",  # Using the exact fixed URL
             headers=headers,
             json=payload,
             timeout=60
