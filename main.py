@@ -136,7 +136,7 @@ VIDEO_MODEL = "provider-6/wan-2.1"
 # Initialize Gemini client for image editing
 @st.cache_resource
 def init_client():
-    return genai.Client(api_key='AIzaSyCZ-1xA0qHy7p3l5VdZYCrvoaQhpMZLjig')
+    return genai.Client(api_key='AIzaSyA5UgP1dzFQgfA_UDjmeU-I3Gt_yFfQOpA')
 
 client = init_client()
 
