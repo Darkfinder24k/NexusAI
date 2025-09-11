@@ -130,7 +130,7 @@ video {
 # API Configuration - URL is fixed exactly as specified
 A4F_API_KEY = "ddc-a4f-b752e3e2936149f49b1b306953e0eaab"
 A4F_BASE_URL = "https://api.a4f.co/v1"  # This exact URL remains unchanged
-IMAGE_MODEL = "provider-4/imagen-4"
+IMAGE_MODEL = "provider-3/FLUX.1-schnell"
 VIDEO_MODEL = "provider-6/wan-2.1"
 
 # Initialize Gemini client for image editing
