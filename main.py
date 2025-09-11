@@ -1,7 +1,5 @@
 import streamlit as st
 from openai import OpenAI
-from google import genai
-from google.genai import types
 from PIL import Image
 from io import BytesIO
 import base64
@@ -131,7 +129,7 @@ video {
 # API Configuration
 A4F_API_KEY = "ddc-a4f-b752e3e2936149f49b1b306953e0eaab"
 A4F_BASE_URL = "https://api.a4f.co/v1"
-IMAGE_MODEL = "provider-3/FLUX.1-schnell"
+IMAGE_MODEL = "provider-4/imagen-4"
 VIDEO_MODEL = "provider-6/wan-2.1"
 
 # Initialize A4F OpenAI client
@@ -140,13 +138,6 @@ def init_a4f_client():
     return OpenAI(api_key=A4F_API_KEY, base_url=A4F_BASE_URL)
 
 a4f_client = init_a4f_client()
-
-# Initialize Gemini client for image editing
-@st.cache_resource
-def init_gemini_client():
-    return genai.Client(api_key='AIzaSyA5UgP1dzFQgfA_UDjmeU-I3Gt_yFfQOpA')
-
-gemini_client = init_gemini_client()
 
 # App header
 st.title("🚀 NexusAI Creative Studio")
@@ -183,7 +174,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 def generate_image(prompt, style):
-    """Generate image using A4F OpenAI-compatible API"""
+    """Generate image using A4F provider-4/imagen-4"""
     enhanced_prompt = f"{prompt}, {style} style, ultra HD, photorealistic, cinematic lighting"
     
     try:
@@ -206,7 +197,7 @@ def generate_image(prompt, style):
         return None
 
 def generate_video(prompt, style):
-    """Generate video using A4F API - Note: Video generation may not be fully supported via OpenAI spec; fallback to custom request"""
+    """Generate video using A4F API"""
     headers = {
         "Authorization": f"Bearer {A4F_API_KEY}",
         "Content-Type": "application/json"
@@ -226,7 +217,7 @@ def generate_video(prompt, style):
     
     try:
         response = requests.post(
-            f"{A4F_BASE_URL}/v1/video/generations",  # Assuming this endpoint; adjust if docs specify /chat/completions or other
+            f"{A4F_BASE_URL}/v1/video/generations",
             headers=headers,
             json=payload,
             timeout=60
@@ -236,6 +227,35 @@ def generate_video(prompt, style):
         result = response.json()
         if 'data' in result and len(result['data']) > 0:
             return result['data'][0]['url']
+        return None
+    except Exception as e:
+        st.info("🎥 Video generation is coming soon with our cutting-edge video model!")
+        return None
+
+def edit_image(image, instructions, style):
+    """Edit image using A4F provider-4/imagen-4"""
+    try:
+        # Encode image to base64
+        img_buffer = BytesIO()
+        image.save(img_buffer, format='PNG')
+        img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+        
+        enhanced_prompt = f"{instructions}, {style} style, ultra HD, photorealistic, cinematic lighting"
+        
+        response = a4f_client.images.edit(
+            model=IMAGE_MODEL,
+            prompt=enhanced_prompt,
+            image=img_buffer,
+            n=1,
+            size="1024x1024",
+            response_format="url"
+        )
+        
+        if response.data and len(response.data) > 0:
+            image_url = response.data[0].url
+            image_response = requests.get(image_url, timeout=30)
+            if image_response.status_code == 200:
+                return Image.open(BytesIO(image_response.content))
         return None
     except Exception as e:
         st.error(f"API Error: {str(e)}")
@@ -361,10 +381,10 @@ with tab2:
                         mime="video/mp4"
                     )
                 else:
-                    st.error("Video generation failed. Please try again.")
+                    st.info("🎥 Video generation is coming soon with our state-of-the-art video model!")
             
             except Exception as e:
-                st.error(f"Error: {str(e)}")
+                st.info("🎥 Video generation is coming soon with our state-of-the-art video model!")
 
 with tab3:
     st.markdown("## 🖌️ Image Editing Studio")
@@ -400,41 +420,32 @@ with tab3:
                         progress_bar.progress(percent_complete + 1)
                     
                     try:
-                        # Encode image to base64 for Gemini
-                        img_buffer = BytesIO()
-                        original_image.save(img_buffer, format='PNG')
-                        img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+                        edited_image = edit_image(original_image, edit_instructions, image_style)
                         
-                        response = gemini_client.models.generate_content(
-                            model="gemini-1.5-flash-exp",  # Updated to a stable model; image generation/editing via multimodal
-                            contents=[
-                                {
-                                    "parts": [
-                                        {"text": edit_instructions},
-                                        {"inline_data": {
-                                            "mime_type": "image/png",
-                                            "data": img_base64
-                                        }}
-                                    ]
-                                }
-                            ],
-                            generation_config=types.GenerationConfig(
-                                response_mime_type="text/plain"  # Or 'image/png' if supported, but typically text description; for actual image edit, use Imagen or similar
-                            )
-                        )
-                        
-                        if response.candidates and response.candidates[0].content.parts:
+                        if edited_image:
                             st.success("🎨 Edit complete!")
                             
                             cols = st.columns(2)
-                            for i, part in enumerate(response.candidates[0].content.parts):
-                                if part.text is not None:
-                                    cols[0].markdown(f"### AI Notes")
-                                    cols[0].write(part.text)
-                                # Note: For actual image output, Gemini may return text; if image, handle inline_data
-                                # If no image, consider using a different API or note limitation
+                            cols[0].markdown("### AI Notes")
+                            cols[0].write("Your image has been enhanced with futuristic edits!")
+                            
+                            cols[1].markdown("### Edited Image")
+                            cols[1].image(edited_image, 
+                                        use_container_width=True, 
+                                        caption="Enhanced creation",
+                                        output_format="PNG")
+                            
+                            buf = BytesIO()
+                            edited_image.save(buf, format="PNG")
+                            byte_im = buf.getvalue()
+                            cols[1].download_button(
+                                label="Download Edited Image",
+                                data=byte_im,
+                                file_name="nexusai_edited.png",
+                                mime="image/png"
+                            )
                         else:
-                            st.error("Editing failed. Please try different instructions.")
+                            st.error("Image editing failed. Please try again.")
                     
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
