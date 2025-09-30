@@ -1,5 +1,4 @@
-google-genai==1.39.1
-pillow==11.3.0
-streamlit==1.50.0
-genai==2.1.0
-google==3.0.0
+streamlit
+google-genai
+Pillow
+google
