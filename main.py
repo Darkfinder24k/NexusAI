@@ -171,7 +171,7 @@ def generate_image(prompt, style):
     try:
         client = genai.Client(api_key=GOOGLE_API_KEY)
         response = client.models.generate_content(
-            model="gemini-2.5-flash-image-preview",
+            model="gemini-2.0-flash-image-preview",
             contents=[enhanced_prompt],
         )
         
@@ -222,7 +222,7 @@ def edit_image(image, instructions, style):
     try:
         client = genai.Client(api_key=GOOGLE_API_KEY)
         response = client.models.generate_content(
-            model="gemini-2.5-flash-image-preview",
+            model="gemini-2.0-flash-image-preview",
             contents=[enhanced_prompt, image],
         )
         
