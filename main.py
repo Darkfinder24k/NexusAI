@@ -1,10 +1,11 @@
 import streamlit as st
-from openai import OpenAI
+from google import genai
 from PIL import Image
 from io import BytesIO
 import base64
 import time
-import requests
+import tempfile
+import os
 import json
 
 # Configure page
@@ -127,17 +128,7 @@ video {
 """, unsafe_allow_html=True)
 
 # API Configuration
-A4F_API_KEY = "ddc-a4f-b752e3e2936149f49b1b306953e0eaab"
-A4F_BASE_URL = "https://api.a4f.co/v1"
-IMAGE_MODEL = "provider-4/imagen-4"
-VIDEO_MODEL = "provider-6/wan-2.1"
-
-# Initialize A4F OpenAI client
-@st.cache_resource
-def init_a4f_client():
-    return OpenAI(api_key=A4F_API_KEY, base_url=A4F_BASE_URL)
-
-a4f_client = init_a4f_client()
+GOOGLE_API_KEY = "AIzaSyBxrwOCY3xIEYkvTBj0lTl5dSD65IjKhvI"
 
 # App header
 st.title("🚀 NexusAI Creative Studio")
@@ -174,88 +165,70 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 def generate_image(prompt, style):
-    """Generate image using A4F provider-4/imagen-4"""
+    """Generate image using Gemini"""
     enhanced_prompt = f"{prompt}, {style} style, ultra HD, photorealistic, cinematic lighting"
     
     try:
-        response = a4f_client.images.generate(
-            model=IMAGE_MODEL,
-            prompt=enhanced_prompt,
-            n=1,
-            size="1024x1024",
-            response_format="url"
+        client = genai.Client(api_key=GOOGLE_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-image-preview",
+            contents=[enhanced_prompt],
         )
         
-        if response.data and len(response.data) > 0:
-            image_url = response.data[0].url
-            image_response = requests.get(image_url, timeout=30)
-            if image_response.status_code == 200:
-                return Image.open(BytesIO(image_response.content))
+        for part in response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                return Image.open(BytesIO(part.inline_data.data))
         return None
     except Exception as e:
         st.error(f"API Error: {str(e)}")
         return None
 
 def generate_video(prompt, style):
-    """Generate video using A4F API"""
-    headers = {
-        "Authorization": f"Bearer {A4F_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
+    """Generate video using Veo"""
     enhanced_prompt = f"{prompt}, {style} style, cinematic, high quality, 4K resolution"
     
-    payload = {
-        "model": VIDEO_MODEL,
-        "prompt": enhanced_prompt,
-        "num_videos": 1,
-        "width": 1024,
-        "height": 576,
-        "duration": 4,
-        "fps": 24
-    }
-    
     try:
-        response = requests.post(
-            f"{A4F_BASE_URL}/v1/video/generations",
-            headers=headers,
-            json=payload,
-            timeout=60
+        client = genai.Client(api_key=GOOGLE_API_KEY)
+        operation = client.models.generate_videos(
+            model="veo-3.0-generate-001",
+            prompt=enhanced_prompt,
         )
         
-        response.raise_for_status()
-        result = response.json()
-        if 'data' in result and len(result['data']) > 0:
-            return result['data'][0]['url']
+        while not operation.done:
+            time.sleep(10)
+            operation = client.operations.get(operation)
+        
+        if hasattr(operation, 'response') and hasattr(operation.response, 'generated_videos') and operation.response.generated_videos:
+            generated_video_obj = operation.response.generated_videos[0]
+            client.files.download(file=generated_video_obj.video)
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_file:
+                generated_video_obj.video.save(tmp_file.name)
+            
+            with open(tmp_file.name, "rb") as f:
+                video_bytes = f.read()
+            
+            os.unlink(tmp_file.name)
+            return video_bytes
         return None
     except Exception as e:
-        st.info("🎥 Video generation is coming soon with our cutting-edge video model!")
+        st.error(f"API Error: {str(e)}")
         return None
 
 def edit_image(image, instructions, style):
-    """Edit image using A4F provider-4/imagen-4"""
+    """Edit image using Gemini"""
+    enhanced_prompt = f"{instructions}, {style} style, ultra HD, photorealistic, cinematic lighting"
+    
     try:
-        # Encode image to base64
-        img_buffer = BytesIO()
-        image.save(img_buffer, format='PNG')
-        img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
-        
-        enhanced_prompt = f"{instructions}, {style} style, ultra HD, photorealistic, cinematic lighting"
-        
-        response = a4f_client.images.edit(
-            model=IMAGE_MODEL,
-            prompt=enhanced_prompt,
-            image=img_buffer,
-            n=1,
-            size="1024x1024",
-            response_format="url"
+        client = genai.Client(api_key=GOOGLE_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-image-preview",
+            contents=[enhanced_prompt, image],
         )
         
-        if response.data and len(response.data) > 0:
-            image_url = response.data[0].url
-            image_response = requests.get(image_url, timeout=30)
-            if image_response.status_code == 200:
-                return Image.open(BytesIO(image_response.content))
+        for part in response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                return Image.open(BytesIO(part.inline_data.data))
         return None
     except Exception as e:
         st.error(f"API Error: {str(e)}")
@@ -297,36 +270,32 @@ with tab1:
                 time.sleep(0.02)
                 progress_bar.progress(percent_complete + 1)
             
-            try:
-                generated_image = generate_image(prompt, image_style)
-                
-                if generated_image:
-                    st.success("✨ Image generation complete!")
-                    
-                    cols = st.columns(2)
-                    cols[0].markdown("### AI Notes")
-                    cols[0].write("Your futuristic image has been created!")
-                    
-                    cols[1].markdown("### Generated Image")
-                    cols[1].image(generated_image, 
-                                use_container_width=True, 
-                                caption="Your creation",
-                                output_format="PNG")
-
-                    buf = BytesIO()
-                    generated_image.save(buf, format="PNG")
-                    byte_im = buf.getvalue()
-                    cols[1].download_button(
-                        label="Download Image",
-                        data=byte_im,
-                        file_name="nexusai_image.png",
-                        mime="image/png"
-                    )
-                else:
-                    st.error("Image generation failed. Please try again.")
+            generated_image = generate_image(prompt, image_style)
             
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+            if generated_image:
+                st.success("✨ Image generation complete!")
+                
+                cols = st.columns(2)
+                cols[0].markdown("### AI Notes")
+                cols[0].write("Your futuristic image has been created!")
+                
+                cols[1].markdown("### Generated Image")
+                cols[1].image(generated_image, 
+                              use_container_width=True, 
+                              caption="Your creation",
+                              output_format="PNG")
+
+                buf = BytesIO()
+                generated_image.save(buf, format="PNG")
+                byte_im = buf.getvalue()
+                cols[1].download_button(
+                    label="Download Image",
+                    data=byte_im,
+                    file_name="nexusai_image.png",
+                    mime="image/png"
+                )
+            else:
+                st.error("Image generation failed. Please try again.")
 
 with tab2:
     with st.form("video_generation_form"):
@@ -360,31 +329,26 @@ with tab2:
                 time.sleep(0.05)
                 progress_bar.progress(percent_complete + 1)
             
-            try:
-                video_url = generate_video(video_prompt, video_style)
-                
-                if video_url:
-                    st.success("🎬 Video generation complete!")
-                    st.markdown("### Your Generated Video")
-                    
-                    # Display video with animation
-                    st.markdown('<div class="generated-video">', unsafe_allow_html=True)
-                    st.video(video_url)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    # Download button
-                    video_data = requests.get(video_url).content
-                    st.download_button(
-                        label="Download Video",
-                        data=video_data,
-                        file_name="nexusai_video.mp4",
-                        mime="video/mp4"
-                    )
-                else:
-                    st.info("🎥 Video generation is coming soon with our state-of-the-art video model!")
+            video_bytes = generate_video(video_prompt, video_style)
             
-            except Exception as e:
-                st.info("🎥 Video generation is coming soon with our state-of-the-art video model!")
+            if video_bytes:
+                st.success("🎬 Video generation complete!")
+                st.markdown("### Your Generated Video")
+                
+                # Display video with animation
+                st.markdown('<div class="generated-video">', unsafe_allow_html=True)
+                st.video(video_bytes)
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Download button
+                st.download_button(
+                    label="Download Video",
+                    data=video_bytes,
+                    file_name="nexusai_video.mp4",
+                    mime="video/mp4"
+                )
+            else:
+                st.error("Video generation failed. Please try again.")
 
 with tab3:
     st.markdown("## 🖌️ Image Editing Studio")
@@ -419,41 +383,36 @@ with tab3:
                         time.sleep(0.02)
                         progress_bar.progress(percent_complete + 1)
                     
-                    try:
-                        edited_image = edit_image(original_image, edit_instructions, image_style)
-                        
-                        if edited_image:
-                            st.success("🎨 Edit complete!")
-                            
-                            cols = st.columns(2)
-                            cols[0].markdown("### AI Notes")
-                            cols[0].write("Your image has been enhanced with futuristic edits!")
-                            
-                            cols[1].markdown("### Edited Image")
-                            cols[1].image(edited_image, 
-                                        use_container_width=True, 
-                                        caption="Enhanced creation",
-                                        output_format="PNG")
-                            
-                            buf = BytesIO()
-                            edited_image.save(buf, format="PNG")
-                            byte_im = buf.getvalue()
-                            cols[1].download_button(
-                                label="Download Edited Image",
-                                data=byte_im,
-                                file_name="nexusai_edited.png",
-                                mime="image/png"
-                            )
-                        else:
-                            st.error("Image editing failed. Please try again.")
+                    edited_image = edit_image(original_image, edit_instructions, image_style)
                     
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
+                    if edited_image:
+                        st.success("🎨 Edit complete!")
+                        
+                        cols = st.columns(2)
+                        cols[0].markdown("### AI Notes")
+                        cols[0].write("Your image has been enhanced with futuristic edits!")
+                        
+                        cols[1].markdown("### Edited Image")
+                        cols[1].image(edited_image, 
+                                      use_container_width=True, 
+                                      caption="Enhanced creation",
+                                      output_format="PNG")
+                        
+                        buf = BytesIO()
+                        edited_image.save(buf, format="PNG")
+                        byte_im = buf.getvalue()
+                        cols[1].download_button(
+                            label="Download Edited Image",
+                            data=byte_im,
+                            file_name="nexusai_edited.png",
+                            mime="image/png"
+                        )
+                    else:
+                        st.error("Image editing failed. Please try again.")
 
 # Footer
 st.markdown("""
 <div style="text-align: center; margin-top: 50px; padding: 20px; border-top: 1px solid var(--primary);">
     <p>© 2025 NexusAI Studios | All Rights Reserved</p>
-    <p>Using fixed API URL: https://api.a4f.co/v1</p>
 </div>
 """, unsafe_allow_html=True)
