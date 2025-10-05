@@ -2,3 +2,5 @@ streamlit
 google-genai
 Pillow
 google
+openai
+OpenAI
